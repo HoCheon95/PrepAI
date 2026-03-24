@@ -1,0 +1,25 @@
+# 🔴 빌드 결과물 (가장 중요)
+target/
+**/target/
+bin/
+*.class
+
+# 🔴 이클립스(Eclipse) 관련 설정 파일
+.settings/
+.project
+.classpath
+.factorypath
+.metadata/
+Servers/
+
+# 🔴 VS Code 관련 설정 파일
+.vscode/
+
+# 🔴 기타 임시 파일 및 로그
+*.log
+tmp/
+temp/
+
+# 🔴 운영체제 관련 파일
+.DS_Store
+Thumbs.db
