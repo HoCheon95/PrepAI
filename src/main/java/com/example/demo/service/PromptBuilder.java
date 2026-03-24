@@ -29,7 +29,7 @@ public class PromptBuilder {
         return prompt.toString();
     }
 
-    // 🔴 단일 문제 재생성용 축약 프롬프트를 조립한다. (Phase 2에서 사용) 🔴
+    // 🔴 단일 문제 재생성용 프롬프트를 조립한다. (Phase 2에서 사용) 🔴
     public String buildSingle(String questionType, String passageText, String difficultyLevel) {
         StringBuilder prompt = new StringBuilder();
         appendOutputFormat(prompt);
@@ -41,7 +41,7 @@ public class PromptBuilder {
         prompt.append("TASK: Use the text provided below as the base passage.\n");
         prompt.append("[TEXT]\n").append(passageText).append("\n\n");
         prompt.append("[QUESTION TYPES TO GENERATE]\n");
-        prompt.append("CRITICAL: Create completely NEW question. DO NOT reuse original question.\n");
+        prompt.append("CRITICAL: DO NOT reuse the original question from the text. Create completely NEW question.\n");
         prompt.append("- Make 3 options clearly incorrect, and 2 options (including the answer) highly confusing.\n\n");
         prompt.append("- ").append(questionType).append(": 1개\n");
         appendTypeRule(prompt, questionType);
@@ -49,15 +49,31 @@ public class PromptBuilder {
     }
 
     // 🔴 모든 문제에 공통으로 적용되는 출력 형식 규칙을 추가한다. 🔴
+    // 🔴 태그는 반드시 단독 줄에 위치해야 Gemini가 형식을 올바르게 따른다. 🔴
     private void appendOutputFormat(StringBuilder p) {
-        p.append("[OUTPUT FORMAT - MUST follow exactly for each question]\n");
-        p.append("[[QUESTION]](number. Korean question text)\n");
-        p.append("[[PASSAGE]](English passage. Summary: add '↓' + summary blanks at bottom)\n");
-        p.append("[[OPTIONS]](1) opt1\n(2) opt2\n(3) opt3\n(4) opt4\n(5) opt5\n");
-        p.append("[[ANSWER]](number)\n");
-        p.append("[[EXPLANATION]](Korean)\n");
-        p.append("---SEP---\n");
-        p.append("Rules: no markdown, underline=<u>word</u>, blank=[ ________ ], raw text only.\n\n");
+        p.append("[STRICT FORMATTING RULES]\n");
+        p.append("1. Do NOT use markdown like **bold** or *italic*.\n");
+        p.append("2. If you need to underline a word, MUST use HTML tags: <u>underlined word</u>\n");
+        p.append("3. For 'Fill in the blank' questions, MUST use [ ________ ] to represent the blank.\n");
+        p.append("4. CRITICAL: Output raw text only. No markdown code blocks.\n\n");
+
+        p.append("[STRICT OUTPUT STRUCTURE]\n");
+        p.append("For EACH question, you MUST follow this tag system exactly:\n");
+        p.append("[[QUESTION]]\n");
+        p.append("(Question number. Question text in Korean)\n");
+        p.append("[[PASSAGE]]\n");
+        p.append("(English Passage ONLY. NEVER include Korean text inside [[PASSAGE]]. If Summary question, put '↓' and summary at the bottom.)\n");
+        p.append("[[OPTIONS]]\n");
+        p.append("(1) (Option 1)\n");
+        p.append("(2) (Option 2)\n");
+        p.append("(3) (Option 3)\n");
+        p.append("(4) (Option 4)\n");
+        p.append("(5) (Option 5)\n");
+        p.append("[[ANSWER]]\n");
+        p.append("(Correct option number)\n");
+        p.append("[[EXPLANATION]]\n");
+        p.append("(Detailed explanation in Korean)\n");
+        p.append("---SEP---\n\n");
     }
 
     // 🔴 난이도와 지문 변형 여부를 조건으로 추가한다. 🔴
@@ -90,8 +106,9 @@ public class PromptBuilder {
         else if (hasText) {
             p.append("TASK: Use the text provided below as the base passage.\n");
             if ("외부지문".equals(examType)) {
-                // 🔴 짧은 텍스트에 여러 문제를 요구할 때 500 에러가 나는 것을 방지한다. 🔴
-                p.append("RULE FOR EXTERNAL TEXT: If the text is long enough, you may divide it into smaller paragraphs for different questions. However, if the text is short, just use the entire text for ALL questions. DO NOT force division if it causes a logical error.\n");
+                // 🔴 긴 외부지문을 각 문제마다 6~8문장 청크로 분할해서 사용하도록 강제한다. 🔴
+                p.append("CRITICAL RULE FOR EXTERNAL TEXT: You MUST divide the provided text into smaller chunks of exactly 6 to 8 sentences each.\n");
+                p.append("Use ONE chunk (6-8 sentences) as the base [PASSAGE] for EACH question you generate. Do NOT use the entire lengthy text for a single question.\n\n");
             }
             p.append("[TEXT]\n").append(passageText).append("\n\n");
         }
@@ -103,7 +120,17 @@ public class PromptBuilder {
 
     // 🔴 선택된 문제 유형과 개수, 각 유형별 생성 규칙을 추가한다. 🔴
     private void appendQuestionTypes(StringBuilder p, List<String> questionTypes, Map<String, String> counts) {
+        // 🔴 총 문제 개수를 계산해서 Gemini에게 명시적으로 알려준다. 🔴
+        int totalCount = 0;
+        if (questionTypes != null) {
+            for (String type : questionTypes) {
+                String countStr = counts.get("count_" + type);
+                try { totalCount += Integer.parseInt(countStr); } catch (Exception ignored) {}
+            }
+        }
+
         p.append("[QUESTION TYPES TO GENERATE]\n");
+        p.append("You MUST generate exactly ").append(totalCount).append(" questions in total. Do NOT stop early.\n");
         p.append("CRITICAL: DO NOT reuse the original question from the text. Create completely NEW questions.\n");
         p.append("- Make 3 options clearly incorrect, and 2 options (including the answer) highly confusing.\n\n");
 
