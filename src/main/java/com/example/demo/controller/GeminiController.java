@@ -65,8 +65,6 @@ public class GeminiController {
         }
         prompt.append("\n");
 
-        // ... (앞부분 동일) ...
-        
         // 🔴 파일 유무와 텍스트 유무를 먼저 판단하여 변수에 저장한다. 🔴
         boolean hasFile = passageImage != null && !passageImage.isEmpty();
         boolean hasText = passageText != null && !passageText.trim().isEmpty();

@@ -1,0 +1,109 @@
+---
+name: update-skills
+description: Create or update repository skills and instructions when major learnings are discovered during a session. Use when the user says "learn!", when a significant pattern or pitfall is identified, or when reusable domain knowledge should be captured for future sessions.
+---
+# Update Skills & Instructions
+
+When a major repository learning is discovered — a recurring pattern, a non-obvious pitfall, a crucial architectural constraint, or domain knowledge that would save future sessions significant time — capture it as a skill or instruction so it persists across sessions.
+
+## When to Use
+
+- The user explicitly says **"learn!"** or asks to capture a learning
+- You discover a significant pattern or constraint that cost meaningful debugging time
+- You identify reusable domain knowledge that isn't documented anywhere in the repo
+- A correction from the user reveals a general principle worth preserving
+
+## Decision: Skill vs Instruction vs Learning
+
+**Add a learning to an existing instruction** when:
+- The insight is small (1-4 sentences) and fits naturally into an existing instruction file
+- It refines or extends an existing guideline
+- Follow the pattern in `.claude/instructions/learnings.instructions.md`
+
+**Create or update a skill** (`.claude/skills/{name}/SKILL.md` or `.claude/skills/{name}.skill.md`) when:
+- The knowledge is substantial (multi-step procedure, detailed guidelines, or rich examples)
+- It covers a distinct domain area (e.g., "how to debug X", "patterns for Y")
+- Future sessions should be able to invoke it by name
+
+**Create or update an instruction** (`.claude/instructions/{name}.instructions.md`) when:
+- The rule should apply automatically based on file patterns (`applyTo`) or globally
+- It's a coding convention, architectural constraint, or process rule
+- It doesn't need to be invoked on demand
+
+## Procedure
+
+### 1. Identify the Learning
+
+Reflect on what went wrong or what was discovered:
+- What was the problem or unexpected behavior?
+- Why was it a problem? (root cause, not symptoms)
+- How was it fixed or what's the correct approach?
+- Can it be generalized beyond this specific instance?
+
+### 2. Check for Existing Files
+
+Before creating new files, search for existing skills and instructions that might be the right home:
+
+```bash
+# 🔴 .claude 폴더를 기준으로 기존 스킬과 지침을 확인한다.
+ls .claude/skills/ 2>/dev/null
+
+ls .claude/instructions/ 2>/dev/null
+
+grep -r "related-keyword" .claude/skills/ .claude/instructions/
+```
+
+### 3a. Add to Existing File
+
+If an appropriate file exists, add the learning to its `## Learnings` section (create the section if it doesn't exist). Each learning should be 1-4 sentences.
+
+### 3b. Create a New Skill
+
+If the knowledge warrants a standalone skill:
+
+1. Choose the location:
+   - `.claude/skills/{name}.skill.md` for project-level skills
+2. Create the SKILL.md with frontmatter:
+
+```markdown
+---
+name: {skill-name}
+description: {One-line description of when and why to use this skill.}
+---
+
+# {Skill Title}
+
+{Body with guidelines, procedures, examples, and learnings.}
+```
+
+3. The `name` field **must match** the file name.
+4. Include concrete examples — skills with examples are far more useful than abstract rules.
+
+### 3c. Create a New Instruction
+
+If the knowledge should apply automatically:
+
+```markdown
+---
+description: {When these instructions should be loaded}
+applyTo: '{glob pattern}' # optional — auto-load when matching files are attached
+---
+
+{Content of the instruction.}
+```
+
+### 4. Quality Checks
+
+Before saving:
+- Is the learning **general enough** to help future sessions, not just this one?
+- Is it **specific enough** to be actionable, not just a vague principle?
+- Does it include a **concrete example** of right vs wrong?
+- Does it avoid duplicating knowledge already captured elsewhere?
+- Is the description clear enough that the agent will know **when** to invoke/apply it?
+
+### 5. Inform the User
+
+After creating or updating the file:
+- Summarize what was captured and where
+- Explain why this location was chosen
+- Note if any existing content was updated vs new content created

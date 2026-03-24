@@ -1,0 +1,57 @@
+{
+  "version": "3.0",
+  "lastUpdated": "2026-03-24T10:29:42.536Z",
+  "activeFeatures": [
+    "skill"
+  ],
+  "primaryFeature": "skill",
+  "features": {
+    "skill": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-03-24T10:29:42.536Z",
+        "lastUpdated": "2026-03-24T10:29:42.536Z"
+      },
+      "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/skill/SkillController.java"
+    }
+  },
+  "pipeline": {
+    "currentPhase": 1,
+    "level": "Dynamic",
+    "phaseHistory": []
+  },
+  "session": {
+    "startedAt": "2026-03-24T10:13:42.806Z",
+    "onboardingCompleted": false,
+    "lastActivity": "2026-03-24T10:29:42.536Z"
+  },
+  "history": [
+    {
+      "timestamp": "2026-03-24T10:29:42.536Z",
+      "feature": "skill",
+      "phase": "do",
+      "action": "updated"
+    }
+  ],
+  "stateMachine": {
+    "defaultWorkflow": "default",
+    "activeWorkflows": {},
+    "totalTransitions": 0
+  },
+  "automation": {
+    "globalLevel": 2,
+    "trustScore": 40,
+    "pendingApprovals": 0,
+    "lastGateResult": null
+  },
+  "team": {
+    "enabled": true,
+    "stateFile": ".bkit/runtime/agent-state.json",
+    "eventsFile": ".bkit/runtime/agent-events.jsonl"
+  }
+}
