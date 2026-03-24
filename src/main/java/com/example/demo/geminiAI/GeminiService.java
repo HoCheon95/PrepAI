@@ -40,6 +40,7 @@ public class GeminiService {
 
             GenerateContentConfig config = GenerateContentConfig.builder()
                     .temperature(0.0f)
+                    .maxOutputTokens(8192)
                     .systemInstruction(systemInstructionContent)
                     .build();
 

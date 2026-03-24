@@ -23,3 +23,6 @@ temp/
 # 🔴 운영체제 관련 파일
 .DS_Store
 Thumbs.db
+
+# 🔴 로컬 환경 설정 (API 키 등 민감 정보 포함 - 절대 커밋 금지)
+application-local.properties

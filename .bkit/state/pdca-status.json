@@ -1,8 +1,11 @@
 {
   "version": "3.0",
-  "lastUpdated": "2026-03-24T10:29:42.536Z",
+  "lastUpdated": "2026-03-24T11:32:28.233Z",
   "activeFeatures": [
-    "skill"
+    "skill",
+    "geminiAI",
+    "controller",
+    "service"
   ],
   "primaryFeature": "skill",
   "features": {
@@ -18,6 +21,45 @@
         "lastUpdated": "2026-03-24T10:29:42.536Z"
       },
       "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/skill/SkillController.java"
+    },
+    "geminiAI": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-03-24T11:11:55.109Z",
+        "lastUpdated": "2026-03-24T11:11:55.109Z"
+      },
+      "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/geminiAI/GeminiService.java"
+    },
+    "controller": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-03-24T11:15:02.224Z",
+        "lastUpdated": "2026-03-24T11:32:28.233Z"
+      },
+      "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/controller/PageController.java"
+    },
+    "service": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-03-24T11:31:25.594Z",
+        "lastUpdated": "2026-03-24T11:31:43.387Z"
+      },
+      "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/service/ResponseValidator.java"
     }
   },
   "pipeline": {
@@ -28,12 +70,48 @@
   "session": {
     "startedAt": "2026-03-24T10:13:42.806Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-03-24T10:29:42.536Z"
+    "lastActivity": "2026-03-24T11:32:28.233Z"
   },
   "history": [
     {
       "timestamp": "2026-03-24T10:29:42.536Z",
       "feature": "skill",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-24T11:11:55.109Z",
+      "feature": "geminiAI",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-24T11:15:02.224Z",
+      "feature": "controller",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-24T11:31:25.594Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-24T11:31:43.387Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-24T11:31:59.311Z",
+      "feature": "controller",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-03-24T11:32:28.233Z",
+      "feature": "controller",
       "phase": "do",
       "action": "updated"
     }
