@@ -23,7 +23,45 @@ public class GeminiService {
 
     // 기존 텍스트 전용 메서드 호환성을 위해 남겨둡니다.
     public String getGeminiResponse(String userPrompt) {
-        return getGeminiResponse(userPrompt, null);
+        return getGeminiResponse(userPrompt, (MultipartFile) null);
+    }
+
+    // 🔴 PNG 바이트 배열 목록(여러 페이지 이미지)과 텍스트를 함께 전송한다. 🔴
+    public String getGeminiResponse(String userPrompt, List<byte[]> imageBytesList) {
+        Client client = Client.builder().apiKey(apiKey).build();
+        try {
+            Content systemInstruction = Content.builder()
+                    .parts(Collections.singletonList(Part.builder()
+                            .text("당신은 한국 수능 영어 시험 PDF에서 영어 지문을 추출하는 도구입니다. 지시에 따라 정확히 추출하십시오.").build()))
+                    .build();
+
+            GenerateContentConfig config = GenerateContentConfig.builder()
+                    .temperature(0.0f)
+                    .maxOutputTokens(8192)
+                    .systemInstruction(systemInstruction)
+                    .build();
+
+            List<Part> parts = new ArrayList<>();
+            parts.add(Part.builder().text(userPrompt).build());
+            if (imageBytesList != null) {
+                for (byte[] imgBytes : imageBytesList) {
+                    parts.add(Part.builder()
+                            .inlineData(Blob.builder()
+                                    .data(Base64.getEncoder().encodeToString(imgBytes))
+                                    .mimeType("image/png")
+                                    .build())
+                            .build());
+                }
+            }
+
+            GenerateContentResponse response = client.models.generateContent(
+                    "gemini-2.5-flash",
+                    Content.builder().parts(parts).build(),
+                    config);
+            return response.text();
+        } catch (Exception e) {
+            return "오류 발생: " + e.getMessage();
+        }
     }
 
     // 🔴 텍스트와 파일을 동시에 받아 처리할 수 있는 오버로딩 메서드를 구성한다. 🔴
@@ -40,7 +78,7 @@ public class GeminiService {
 
             GenerateContentConfig config = GenerateContentConfig.builder()
                     .temperature(0.0f)
-                    .maxOutputTokens(8192)
+                    .maxOutputTokens(65536)  // 🔴 여러 문제를 생성할 때 토큰 부족으로 잘리는 문제를 방지한다. 🔴
                     .systemInstruction(systemInstructionContent)
                     .build();
 

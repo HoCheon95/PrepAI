@@ -1,0 +1,247 @@
+{
+  "timestamp": "2026-03-25T00:39:35.433Z",
+  "reason": "compaction",
+  "status": {
+    "version": "3.0",
+    "lastUpdated": "2026-03-25T00:36:17.740Z",
+    "activeFeatures": [
+      "skill",
+      "geminiAI",
+      "controller",
+      "service",
+      "entity",
+      "repository",
+      "js"
+    ],
+    "primaryFeature": "skill",
+    "features": {
+      "skill": {
+        "phase": "do",
+        "phaseNumber": 3,
+        "matchRate": null,
+        "iterationCount": 0,
+        "requirements": [],
+        "documents": {},
+        "timestamps": {
+          "started": "2026-03-24T10:29:42.536Z",
+          "lastUpdated": "2026-03-24T10:29:42.536Z"
+        },
+        "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/skill/SkillController.java"
+      },
+      "geminiAI": {
+        "phase": "do",
+        "phaseNumber": 3,
+        "matchRate": null,
+        "iterationCount": 0,
+        "requirements": [],
+        "documents": {},
+        "timestamps": {
+          "started": "2026-03-24T11:11:55.109Z",
+          "lastUpdated": "2026-03-24T11:11:55.109Z"
+        },
+        "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/geminiAI/GeminiService.java"
+      },
+      "controller": {
+        "phase": "do",
+        "phaseNumber": 3,
+        "matchRate": null,
+        "iterationCount": 0,
+        "requirements": [],
+        "documents": {},
+        "timestamps": {
+          "started": "2026-03-24T11:15:02.224Z",
+          "lastUpdated": "2026-03-25T00:35:12.014Z"
+        },
+        "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/controller/GeminiController.java"
+      },
+      "service": {
+        "phase": "do",
+        "phaseNumber": 3,
+        "matchRate": null,
+        "iterationCount": 0,
+        "requirements": [],
+        "documents": {},
+        "timestamps": {
+          "started": "2026-03-24T11:31:25.594Z",
+          "lastUpdated": "2026-03-24T12:01:21.458Z"
+        },
+        "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/service/PromptBuilder.java"
+      },
+      "entity": {
+        "phase": "do",
+        "phaseNumber": 3,
+        "matchRate": null,
+        "iterationCount": 0,
+        "requirements": [],
+        "documents": {},
+        "timestamps": {
+          "started": "2026-03-25T00:20:03.677Z",
+          "lastUpdated": "2026-03-25T00:20:12.939Z"
+        },
+        "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/entity/Answer.java"
+      },
+      "repository": {
+        "phase": "do",
+        "phaseNumber": 3,
+        "matchRate": null,
+        "iterationCount": 0,
+        "requirements": [],
+        "documents": {},
+        "timestamps": {
+          "started": "2026-03-25T00:20:21.165Z",
+          "lastUpdated": "2026-03-25T00:20:28.636Z"
+        },
+        "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/repository/AnswerRepository.java"
+      },
+      "js": {
+        "phase": "do",
+        "phaseNumber": 3,
+        "matchRate": null,
+        "iterationCount": 0,
+        "requirements": [],
+        "documents": {},
+        "timestamps": {
+          "started": "2026-03-25T00:36:17.740Z",
+          "lastUpdated": "2026-03-25T00:36:17.740Z"
+        },
+        "lastFile": "/home/ho/workspace/PrepAI/src/main/resources/static/js/reviewResult.js"
+      }
+    },
+    "pipeline": {
+      "currentPhase": 1,
+      "level": "Dynamic",
+      "phaseHistory": []
+    },
+    "session": {
+      "startedAt": "2026-03-24T10:13:42.806Z",
+      "onboardingCompleted": false,
+      "lastActivity": "2026-03-25T00:36:17.740Z"
+    },
+    "history": [
+      {
+        "timestamp": "2026-03-24T10:29:42.536Z",
+        "feature": "skill",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-24T11:11:55.109Z",
+        "feature": "geminiAI",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-24T11:15:02.224Z",
+        "feature": "controller",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-24T11:31:25.594Z",
+        "feature": "service",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-24T11:31:43.387Z",
+        "feature": "service",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-24T11:31:59.311Z",
+        "feature": "controller",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-24T11:32:28.233Z",
+        "feature": "controller",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-24T11:51:26.851Z",
+        "feature": "service",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-24T11:51:44.207Z",
+        "feature": "service",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-24T12:00:30.777Z",
+        "feature": "service",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-24T12:00:51.011Z",
+        "feature": "service",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-24T12:01:21.458Z",
+        "feature": "service",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-25T00:20:03.677Z",
+        "feature": "entity",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-25T00:20:12.939Z",
+        "feature": "entity",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-25T00:20:21.165Z",
+        "feature": "repository",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-25T00:20:28.636Z",
+        "feature": "repository",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-25T00:35:12.014Z",
+        "feature": "controller",
+        "phase": "do",
+        "action": "updated"
+      },
+      {
+        "timestamp": "2026-03-25T00:36:17.740Z",
+        "feature": "js",
+        "phase": "do",
+        "action": "updated"
+      }
+    ],
+    "stateMachine": {
+      "defaultWorkflow": "default",
+      "activeWorkflows": {},
+      "totalTransitions": 0
+    },
+    "automation": {
+      "globalLevel": 2,
+      "trustScore": 40,
+      "pendingApprovals": 0,
+      "lastGateResult": null
+    },
+    "team": {
+      "enabled": true,
+      "stateFile": ".bkit/runtime/agent-state.json",
+      "eventsFile": ".bkit/runtime/agent-events.jsonl"
+    }
+  }
+}

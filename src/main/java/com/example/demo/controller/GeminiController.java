@@ -2,12 +2,10 @@ package com.example.demo.controller;
 
 import com.example.demo.geminiAI.GeminiService;
 import com.example.demo.service.PromptBuilder;
+import com.example.demo.service.QuestionSaveService;
 import com.example.demo.service.ResponseValidator;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.ModelAndView;
 
@@ -26,6 +24,9 @@ public class GeminiController {
 
     @Autowired
     private ResponseValidator responseValidator;
+
+    @Autowired
+    private QuestionSaveService questionSaveService;
 
     @GetMapping("/api/chat")
     public String chatWithGemini(@RequestParam String prompt) {
@@ -46,21 +47,49 @@ public class GeminiController {
         boolean hasFile = passageImage != null && !passageImage.isEmpty();
         boolean hasText = passageText != null && !passageText.trim().isEmpty();
 
-        // 🔴 프롬프트 조립을 PromptBuilder에 위임한다. 🔴
-        String prompt = promptBuilder.build(
+        // 🔴 프롬프트 조립 + 요청 문제 수 산출을 PromptBuilder에 위임한다. 🔴
+        String prompt         = promptBuilder.build(
                 examType, passageText, questionNos, questionTypes,
                 difficultyLevel, modifications, hasFile, hasText, allParams);
+        int    expectedCount  = promptBuilder.countTotal(questionTypes, allParams);
 
-        // 🔴 Gemini 호출 후 ResponseValidator로 형식 검증 + 최대 3회 재시도한다. 🔴
+        System.out.println("[PrepAI] 문제 생성 요청: " + expectedCount + "개");
+
+        // 🔴 Gemini 호출 후 ResponseValidator로 형식 + 문제 수 검증, 최대 3회 재시도한다. 🔴
         String initialResponse = geminiService.getGeminiResponse(prompt, passageImage);
-        String aiResponse = responseValidator.validateWithRetry(initialResponse, prompt, passageImage, geminiService);
+        String aiResponse      = responseValidator.validateWithRetry(
+                initialResponse, prompt, passageImage, geminiService, expectedCount);
 
-        System.out.println("================== [AI 응답 결과 확인] ==================");
-        System.out.println(aiResponse);
-        System.out.println("=========================================================");
+        // 🔴 실제 생성된 완전한 문제 블록 수를 세어 터미널에 출력한다. 🔴
+        long actualCount = java.util.Arrays.stream(aiResponse.split("---SEP---"))
+                .map(String::trim)
+                .filter(b -> !b.isEmpty() && b.contains("[[QUESTION]]") && b.contains("[[ANSWER]]"))
+                .count();
+        if (actualCount < expectedCount) {
+            System.out.println("[PrepAI] ⚠️ 문제 생성 완료 — 요청 " + expectedCount + "개 / 생성 " + actualCount + "개 / 미생성 " + (expectedCount - actualCount) + "개");
+        } else {
+            System.out.println("[PrepAI] 문제 생성 완료 — " + actualCount + "개");
+        }
 
-        ModelAndView mav = new ModelAndView("result");
+        // 🔴 생성 완료 후 시험지 직접 렌더링 대신 중간 검토 뷰로 이동한다. 🔴
+        ModelAndView mav = new ModelAndView("reviewResult");
         mav.addObject("examResult", aiResponse);
+        mav.addObject("examType", examType);
         return mav;
+    }
+
+    // 🔴 프론트엔드 검토 화면에서 "DB에 저장" 버튼을 누르면 호출된다. 🔴
+    // 🔴 사용자가 편집한 문제 목록을 JSON으로 받아 questions + answers 테이블에 저장한다. 🔴
+    @PostMapping(value = "/api/save-questions", produces = "application/json")
+    @ResponseBody
+    public Map<String, Object> saveQuestions(@RequestBody Map<String, Object> body) {
+        String examType = (String) body.getOrDefault("examType", "모의고사");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, String>> questions = (List<Map<String, String>>) body.get("questions");
+
+        List<Long> ids = questionSaveService.saveAll(examType, questions);
+        System.out.println("[PrepAI] 저장된 문제 ID: " + ids);
+        return Map.of("savedCount", ids.size(), "ids", ids);
     }
 }

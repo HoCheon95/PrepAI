@@ -100,7 +100,9 @@ public class PromptBuilder {
             String targetNums = String.join(", ", questionNos);
             p.append("Target Question Numbers: [").append(targetNums).append("]\n");
             p.append("TASK: Read the attached document carefully. Extract the English reading passage for EACH Target Question Number.\n");
-            p.append("HINT: Locate the number, skip the Korean text, and EXTRACT ONLY THE ENGLISH PASSAGE.\n\n");
+            p.append("HINT: A real question ALWAYS starts with 'N.' (e.g., '43.'). Do NOT treat section headers like '[43~45]' as question numbers — they are just group labels.\n");
+            p.append("HINT: For each Target Question Number, find the line starting with 'N.' and put that Korean question text into [[QUESTION]]. Extract the full English passage into [[PASSAGE]].\n");
+            p.append("HINT: If the passage contains labeled sections like (A), (B), (C), (D), you MUST preserve ALL section labels exactly as they appear inside [[PASSAGE]].\n\n");
         }
         // 🔴 텍스트만 있을 때: 입력된 텍스트를 지문으로 사용한다. 🔴
         else if (hasText) {
@@ -118,19 +120,25 @@ public class PromptBuilder {
         }
     }
 
-    // 🔴 선택된 문제 유형과 개수, 각 유형별 생성 규칙을 추가한다. 🔴
-    private void appendQuestionTypes(StringBuilder p, List<String> questionTypes, Map<String, String> counts) {
-        // 🔴 총 문제 개수를 계산해서 Gemini에게 명시적으로 알려준다. 🔴
-        int totalCount = 0;
+    // 🔴 요청된 총 문제 개수를 반환한다. GeminiController가 생성 결과 검증에 사용한다. 🔴
+    public int countTotal(List<String> questionTypes, Map<String, String> counts) {
+        int total = 0;
         if (questionTypes != null) {
             for (String type : questionTypes) {
                 String countStr = counts.get("count_" + type);
-                try { totalCount += Integer.parseInt(countStr); } catch (Exception ignored) {}
+                try { total += Integer.parseInt(countStr); } catch (Exception ignored) {}
             }
         }
+        return total;
+    }
+
+    // 🔴 선택된 문제 유형과 개수, 각 유형별 생성 규칙을 추가한다. 🔴
+    private void appendQuestionTypes(StringBuilder p, List<String> questionTypes, Map<String, String> counts) {
+        // 🔴 총 문제 개수를 계산해서 Gemini에게 명시적으로 알려준다. 🔴
+        int totalCount = countTotal(questionTypes, counts);
 
         p.append("[QUESTION TYPES TO GENERATE]\n");
-        p.append("You MUST generate exactly ").append(totalCount).append(" questions in total. Do NOT stop early.\n");
+        p.append("You MUST generate exactly ").append(totalCount).append(" questions in total. Do NOT stop early. Complete ALL questions before ending.\n");
         p.append("CRITICAL: DO NOT reuse the original question from the text. Create completely NEW questions.\n");
         p.append("- Make 3 options clearly incorrect, and 2 options (including the answer) highly confusing.\n\n");
 

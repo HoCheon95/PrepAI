@@ -1,489 +1,577 @@
-# PrepAI v2 Design Document
+# PrepAI v2 - 설계 문서
 
-> **Summary**: PromptBuilder + ResponseValidator 분리, 로딩 UX, 재생성/편집, DB 저장 기능 설계 (Option C - 실용적 균형)
->
-> **Project**: PrepAI
-> **Version**: 2.0.0
-> **Author**: 개발팀
-> **Date**: 2026-03-24
+> **Feature**: prepai-v2 (AI 문제 생성 전용 플랫폼)
+> **Architecture**: Option C — 실용적 균형
+> **Date**: 2026-03-25
 > **Status**: Draft
-> **Planning Doc**: [prepai-v2.plan.md](../01-plan/features/prepai-v2.plan.md)
 
 ---
 
 ## Context Anchor
 
-> Plan 문서에서 복사. Design → Do 컨텍스트 연속성 확보용.
-
 | Key | Value |
 |-----|-------|
-| **WHY** | 교사가 직접 문제를 만드는 데 소요하는 시간 절감 + AI 품질 불신 해소 |
+| **WHY** | 문제 생성과 시험지 렌더링이 한 앱에 있어 무겁고 느림 → 역할 분리로 각각 빠르게 |
 | **WHO** | 한국 고등학교 영어 선생님 (수능·모의고사 대비 문제 제작) |
-| **RISK** | Gemini API 응답 형식 불안정, DB 도입 시 기존 JSP 구조와의 정합성 |
-| **SUCCESS** | 형식 오류율 < 5%, 교사 피드백 만족도 4/5 이상, 문제 저장·재사용 가능 |
-| **SCOPE** | Phase 1: 품질·안정성 / Phase 2: UX 개선 / Phase 3: DB 저장 |
+| **RISK** | DB 스키마(questions + answers 2개 테이블)를 잘 설계해야 ExamMaker가 올바르게 읽을 수 있음. DB는 아직 미생성 — 연동은 DB 준비 후 진행 |
+| **SUCCESS** | PrepAI는 문제 생성 + DB 저장만 담당. 시험지 관련 코드가 PrepAI에 없음 |
+| **SCOPE** | Phase 1: AI 품질·안정성 / Phase 2: 생성 결과 검토 UX + DB 저장 / Phase 3: DB API (ExamMaker 연동용) |
 
 ---
 
 ## 1. Overview
 
-### 1.1 Design Goals
+### 1.1 선택된 아키텍처: Option C — 실용적 균형
 
-- `GeminiController`의 비대한 프롬프트 빌드 로직을 `PromptBuilder`로 분리
-- 응답 형식 검증과 재시도 책임을 `ResponseValidator`에 위임
-- 기존 JSP/JS 파일에 최소 침습적으로 UX 기능(로딩, 재생성, 편집) 추가
-- Phase 3에서 JPA + H2로 문제 저장 기능 도입 (기존 구조 영향 최소화)
+`reviewResult.jsp` 신규 생성으로 핵심 역할 분리를 달성하면서, `QuestionSaveService` 하나로 question + answer 동시 저장. 오버엔지니어링 없이 플랜 목표를 달성한다.
 
-### 1.2 Design Principles
+### 1.2 현재 코드베이스 상태
 
-- **Single Responsibility**: 프롬프트 생성 / 검증 / 저장 책임을 각각 분리
-- **Backward Compatibility**: 기존 `/api/generate-questions` 동작 유지
-- **Minimal Refactoring**: 새 클래스 추가 위주, 기존 클래스 대규모 변경 지양
-- **gemini-prompt-rules.skill.md 준수**: 태그 시스템, 포맷 규칙 유지
+```
+이미 완료된 것 (변경 불필요):
+  ✅ ResponseValidator.java — 형식 검증 + 최대 3회 재시도
+  ✅ GeminiService.java     — Gemini 2.5 Flash API 호출
+  ✅ application.properties — API 키 환경변수 분리 완료
+  ✅ questionForm.jsp        — 입력 폼 (12개 유형, 파일 업로드)
+
+수정 완료:
+  🔧 PromptBuilder.java     — FR-13/FR-14: PDF 추출 품질 개선 (appendPassageSource HINT 수정)
+
+변경/신규 필요:
+  🔧 GeminiController.java  — "result" → "reviewResult", 저장 API 추가
+  🔧 pom.xml                — JPA + H2 의존성 추가
+  🔧 application.properties — H2 datasource 설정 추가
+  🆕 reviewResult.jsp        — 중간 검토 뷰 (핵심 신규)
+  🆕 reviewResult.js         — 파서 + 버튼 인터랙션
+  🆕 QuestionSaveService.java — question + answer DB 저장
+  🆕 Question.java           — JPA Entity
+  🆕 Answer.java             — JPA Entity
+  🆕 QuestionRepository.java — Spring Data JPA
+  🆕 AnswerRepository.java   — Spring Data JPA
+```
+
+### 1.3 AI 응답 형식 (기존 태그 시스템)
+
+현재 Gemini 응답은 다음 구조로 오며, 이것을 파싱해서 저장한다:
+
+```
+[[QUESTION]]
+(문제 번호. 문제 텍스트 한국어)
+[[PASSAGE]]
+(영어 지문)
+[[OPTIONS]]
+(1) 선택지1
+(2) 선택지2
+(3) 선택지3
+(4) 선택지4
+(5) 선택지5
+[[ANSWER]]
+(정답 번호)
+[[EXPLANATION]]
+(해설 한국어)
+---SEP---
+```
 
 ---
 
 ## 2. Architecture
 
-### 2.0 Architecture Comparison
-
-| Criteria | Option A: 최소 변경 | Option B: 클린 | **Option C: 실용적 (선택)** |
-|----------|:--:|:--:|:--:|
-| 신규 파일 | 0 | 10+ | 6 |
-| 변경 파일 | 3 | 2 | 5 |
-| 복잡도 | 낮음 | 높음 | **중간** |
-| 유지보수성 | 중간 | 높음 | **높음** |
-| 작업량 | 낮음 | 높음 | **중간** |
-
-**선택**: Option C — 기존 구조를 유지하면서 역할 분리. 과도한 리팩토링 없이 유지보수성 확보.
-
-### 2.1 Component Diagram
+### 2.1 전체 흐름
 
 ```
-[Browser]
-    │  POST /api/generate-questions
-    ▼
-[GeminiController]
-    │  PromptBuilder.build(questionTypes, examType, ...)
-    ├──▶ [PromptBuilder]  ← 신규 @Component
-    │       └── 유형별 프롬프트 조립 반환
-    │
-    │  geminiService.getGeminiResponse(prompt, file)
-    ├──▶ [GeminiService]  ← 기존 (maxOutputTokens 추가됨)
-    │       └── Gemini 2.5 Flash API 호출
-    │
-    │  validator.validate(response) → 실패 시 최대 3회 재시도
-    ├──▶ [ResponseValidator]  ← 신규 @Component
-    │
-    │  ModelAndView("result")
-    ▼
-[result.jsp]  ← 재생성 버튼 + 인라인 편집 UI 추가
-    │
-    │  POST /api/regenerate-question  (Phase 2)
-    ▼
-[GeminiController.regenerateQuestion()]  ← 신규 엔드포인트
+questionForm.jsp
+      ↓ POST /api/generate-questions (multipart)
+GeminiController.generateQuestions()
+      ├→ PromptBuilder.build()              (기존)
+      ├→ GeminiService.getGeminiResponse()  (기존)
+      └→ ResponseValidator.validateWithRetry() (기존)
+              ↓ aiResponse (raw string)
+      ModelAndView("reviewResult")          ← 변경 포인트
+              ↓
+reviewResult.jsp + reviewResult.js
+      ├─ 파싱: ---SEP--- 분리 → 문제 카드 렌더링
+      ├─ [재생성] → POST /api/regenerate-question
+      ├─ [복사하기] → Clipboard API
+      └─ [DB에 저장] → POST /api/save-questions
+              ↓
+GeminiController.saveQuestions()
+      └→ QuestionSaveService.save()
+              ├─ QuestionRepository → questions 테이블
+              └─ AnswerRepository  → answers 테이블
 
-[Phase 3 추가]
-    │  POST /api/save-questions
-    ▼
-[QuestionSetRepository]  ← JPA
-    ▼
-[H2 DB] (question_set, question 테이블)
+ExamMaker 연동 (Phase 3 — DB 준비 후):
+      GET /api/questions
+      GET /api/questions/{id}
+      GET /api/answers/{questionId}
 ```
 
-### 2.2 Data Flow — 문제 생성
+### 2.2 패키지 구조
 
 ```
-사용자 폼 제출
-  → GeminiController.generateQuestions()
-  → PromptBuilder.build()로 프롬프트 생성
-  → GeminiService.getGeminiResponse() 호출
-  → ResponseValidator.validate() 결과 검증
-      ├── 성공: result.jsp 렌더링
-      └── 실패: 재시도 (최대 3회) → 3회 실패 시 에러 페이지
+com.example.demo/
+├── controller/
+│   ├── GeminiController.java    (수정)
+│   └── PageController.java      (기존 유지)
+├── geminiAI/
+│   └── GeminiService.java       (기존 유지)
+├── service/
+│   ├── PromptBuilder.java       (기존 유지)
+│   ├── ResponseValidator.java   (기존 유지)
+│   └── QuestionSaveService.java (신규)
+├── entity/
+│   ├── Question.java            (신규)
+│   └── Answer.java              (신규)
+├── repository/
+│   ├── QuestionRepository.java  (신규)
+│   └── AnswerRepository.java    (신규)
+└── DemoApplication.java         (기존 유지)
 ```
-
-### 2.3 Dependencies
-
-| Component | Depends On | Purpose |
-|-----------|-----------|---------|
-| GeminiController | PromptBuilder, ResponseValidator, GeminiService | 요청 처리 조율 |
-| PromptBuilder | - (순수 로직) | 문제 유형별 프롬프트 조립 |
-| ResponseValidator | - (순수 로직) | [[TAG]] + ---SEP--- 형식 검증 |
-| GeminiService | google-genai SDK | Gemini API 호출 |
-| QuestionSetRepository (P3) | JPA, QuestionSet Entity | DB 저장/조회 |
 
 ---
 
-## 3. Data Model
+## 3. DB Schema
 
-### 3.1 Phase 3 JPA Entities
-
-```java
-// QuestionSet.java — 문제 세트 (한 번 생성한 결과 전체)
-@Entity
-public class QuestionSet {
-    @Id @GeneratedValue
-    private Long id;
-
-    private String title;          // 예: "2025 수능 18번 빈칸추론 변형"
-    private String examType;       // 모의고사 / 외부지문 / 교과서
-    private String difficultyLevel;
-    private LocalDateTime createdAt;
-
-    @OneToMany(mappedBy = "questionSet", cascade = CascadeType.ALL)
-    private List<Question> questions;
-}
-
-// Question.java — 개별 문제
-@Entity
-public class Question {
-    @Id @GeneratedValue
-    private Long id;
-
-    @ManyToOne
-    private QuestionSet questionSet;
-
-    private String questionType;   // 빈칸추론, 주제파악, ...
-    private String questionText;   // [[QUESTION]] 내용
-    private String passage;        // [[PASSAGE]] 내용
-    private String options;        // [[OPTIONS]] 내용 (줄바꿈 포함 raw text)
-    private String answer;         // [[ANSWER]] 내용
-    private String explanation;    // [[EXPLANATION]] 내용
-}
-```
-
-### 3.2 Entity Relationships
-
-```
-[QuestionSet] 1 ──── N [Question]
-```
-
-### 3.3 DB Schema (H2 자동 생성)
+### 3.1 questions 테이블
 
 ```sql
--- spring.jpa.hibernate.ddl-auto=update 로 자동 생성됨
--- H2 파일 모드: spring.datasource.url=jdbc:h2:file:./data/prepai
+CREATE TABLE questions (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    question_type   VARCHAR(100),   -- 문제 유형 (빈칸추론, 주제파악 등)
+    question_number INT,            -- 문제 순서 (1, 2, 3...)
+    passage         TEXT,           -- 영어 지문 ([[PASSAGE]] 내용)
+    input_mode      VARCHAR(50),    -- 모의고사/외부지문/교과서
+    question_text   TEXT,           -- 문제 본문 ([[QUESTION]] 내용)
+    options         TEXT,           -- 선택지 JSON (["(1) ...","(2) ...",…])
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+```
 
-question_set (id, title, exam_type, difficulty_level, created_at)
-question     (id, question_set_id, question_type, question_text,
-              passage, options, answer, explanation)
+### 3.2 answers 테이블
+
+```sql
+CREATE TABLE answers (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    question_id     BIGINT NOT NULL,  -- questions.id 참조
+    answer          VARCHAR(10),      -- 정답 번호 ([[ANSWER]] 내용)
+    explanation     TEXT,             -- 해설 ([[EXPLANATION]] 내용)
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+```
+
+### 3.3 관계
+
+```
+questions 1 ──── 1 answers
+  id  ←────────── question_id
 ```
 
 ---
 
-## 4. API Specification
+## 4. Component Design
 
-### 4.1 Endpoint List
+### 4.1 GeminiController.java 변경 사항
 
-| Method | Path | Description | 단계 |
-|--------|------|-------------|------|
-| POST | `/api/generate-questions` | 기존 문제 생성 (유지) | 기존 |
-| POST | `/api/regenerate-question` | 단일 문제 재생성 | Phase 2 |
-| POST | `/api/save-questions` | 문제 세트 DB 저장 | Phase 3 |
-| GET | `/api/question-sets` | 저장된 세트 목록 | Phase 3 |
-| GET | `/api/question-sets/{id}` | 저장된 세트 상세 조회 | Phase 3 |
-| GET | `/question-list` | 목록 페이지 (JSP) | Phase 3 |
+**변경 1 — 라우팅**: `"result"` → `"reviewResult"` + examType 전달
 
-### 4.2 Detailed Specification
-
-#### `POST /api/regenerate-question` (Phase 2)
-
-**Request (form-data):**
-```
-questionType   : 빈칸추론
-passageText    : (원본 지문 텍스트)
-difficultyLevel: 중
+```java
+ModelAndView mav = new ModelAndView("reviewResult");  // 핵심 변경
+mav.addObject("examResult", aiResponse);
+mav.addObject("examType", examType);                  // 저장 시 필요
+return mav;
 ```
 
-**Response:** `result.jsp`와 동일한 형식의 단일 문제 HTML fragment
-또는 raw AI 응답 텍스트 (JS에서 파싱)
+**추가 1 — 저장 API**:
 
-#### `POST /api/save-questions` (Phase 3)
+```java
+@PostMapping("/api/save-questions")
+public ResponseEntity<Map<String, Object>> saveQuestions(
+    @RequestBody Map<String, Object> payload)
+// payload: { examType, questions: [{questionType, questionText, passage, options, answer, explanation}] }
+// response: { savedCount: N, ids: [1,2,3,...] }
+```
 
-**Request (JSON):**
+**추가 2 — 단일 재생성 API** (기존 `buildSingle` 활용):
+
+```java
+@PostMapping("/api/regenerate-question")
+public ResponseEntity<String> regenerateQuestion(
+    @RequestParam String questionType,
+    @RequestParam String passageText,
+    @RequestParam(required = false) String difficultyLevel)
+// response: 원시 AI 응답 텍스트 (단일 문제 ---SEP--- 포함)
+```
+
+**추가 3 — ExamMaker 연동 API** (Phase 3):
+
+```java
+@GetMapping("/api/questions")
+@GetMapping("/api/questions/{id}")
+@GetMapping("/api/answers/{questionId}")
+```
+
+### 4.2 PromptBuilder.java — FR-13/FR-14 PDF 추출 품질 개선
+
+**변경 위치**: `appendPassageSource()` 메서드 내 HINT 3줄
+
+**문제**: 기존 HINT가 `[43~45]` 섹션 헤더를 문제 번호로 오인하고, 단락 구분자 `(A)(B)(C)(D)`를 제거하며, 한국어 문제 텍스트를 누락시킴
+
+**변경 내용**:
+```java
+// Before
+p.append("HINT: Locate the number, skip the Korean text, and EXTRACT ONLY THE ENGLISH PASSAGE.\n\n");
+
+// After (3개 HINT로 교체)
+p.append("HINT: A real question ALWAYS starts with 'N.' (e.g., '43.'). Do NOT treat section headers like '[43~45]' as question numbers — they are just group labels.\n");
+p.append("HINT: For each Target Question Number, find the line starting with 'N.' and put that Korean question text into [[QUESTION]]. Extract the full English passage into [[PASSAGE]].\n");
+p.append("HINT: If the passage contains labeled sections like (A), (B), (C), (D), you MUST preserve ALL section labels exactly as they appear inside [[PASSAGE]].\n\n");
+```
+
+**FR-13 — 단락 구분자 보존**: `(A)`, `(B)`, `(C)`, `(D)` 레이블을 [[PASSAGE]]에 원문 그대로 유지
+**FR-14 — 문제 번호 패턴**: `번호.` (예: `43.`)로 시작하는 줄만 진짜 문제로 인식. `[43~45]` 헤더 무시
+
+---
+
+### 4.3 QuestionSaveService.java
+
+```
+책임: AI 응답 raw string 파싱 → questions + answers 테이블 저장
+
+입력:
+  - rawAiResponse: String  (---SEP--- 구분 전체 응답)
+  - examType: String       (모의고사/외부지문/교과서)
+  - questionTypes: List<String> (각 문제의 유형, 순서대로)
+
+처리 흐름:
+  1. rawAiResponse.split("---SEP---") → 블록 배열
+  2. 각 블록 파싱:
+     [[QUESTION]]  → questionText
+     [[PASSAGE]]   → passage
+     [[OPTIONS]]   → options (JSON 배열로 변환)
+     [[ANSWER]]    → answer
+     [[EXPLANATION]] → explanation
+  3. Question 엔티티 생성 → questionRepository.save(question) → savedId
+  4. Answer 엔티티 생성 (questionId = savedId) → answerRepository.save(answer)
+  5. 저장된 Question 목록 반환
+
+에러 처리:
+  - 개별 문제 파싱/저장 실패 시 → 해당 문제만 스킵 + 경고 로그
+  - 나머지 문제는 계속 저장 진행
+```
+
+### 4.4 Question.java (JPA Entity)
+
+```java
+@Entity
+@Table(name = "questions")
+public class Question {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "question_type")
+    private String questionType;
+
+    @Column(name = "question_number")
+    private Integer questionNumber;
+
+    @Column(columnDefinition = "TEXT")
+    private String passage;
+
+    @Column(name = "input_mode")
+    private String inputMode;
+
+    @Column(name = "question_text", columnDefinition = "TEXT")
+    private String questionText;
+
+    @Column(columnDefinition = "TEXT")
+    private String options;        // JSON 문자열
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    public void prePersist() { this.createdAt = LocalDateTime.now(); }
+
+    // getters/setters
+}
+```
+
+### 4.5 Answer.java (JPA Entity)
+
+```java
+@Entity
+@Table(name = "answers")
+public class Answer {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "question_id", nullable = false)
+    private Long questionId;
+
+    private String answer;
+
+    @Column(columnDefinition = "TEXT")
+    private String explanation;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    public void prePersist() { this.createdAt = LocalDateTime.now(); }
+
+    // getters/setters
+}
+```
+
+### 4.6 reviewResult.jsp 구조
+
+```html
+<%@ page contentType="text/html; charset=UTF-8" %>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>문제 검토</title>
+    <link rel="stylesheet" href=".../css/reviewResult.css">
+    <script src=".../js/reviewResult.js" defer></script>
+</head>
+<body>
+  <div class="review-container">
+
+    <!-- 상단 액션 바 -->
+    <div class="action-bar">
+      <span id="question-count">총 N개 문제</span>
+      <div class="action-buttons">
+        <button onclick="copyAll()">복사하기</button>
+        <button onclick="saveToDb()" class="btn-primary">DB에 저장</button>
+        <a href="/question-form" class="btn">다시 생성하기</a>
+      </div>
+    </div>
+
+    <!-- 문제 카드 목록 (JS가 동적 렌더링) -->
+    <div id="question-list"></div>
+
+  </div>
+
+  <!-- 원본 데이터 -->
+  <textarea id="raw-data" style="display:none">${examResult}</textarea>
+  <input type="hidden" id="exam-type" value="${examType}">
+</body>
+</html>
+```
+
+### 4.7 reviewResult.js 핵심 로직
+
+```javascript
+// 파싱 함수: 태그 사이 내용 추출
+function extractBetween(block, startTag, endTag) {
+    const start = block.indexOf(startTag);
+    if (start === -1) return '';
+    const contentStart = start + startTag.length;
+    const end = endTag ? block.indexOf(endTag, contentStart) : block.length;
+    return block.substring(contentStart, end === -1 ? block.length : end).trim();
+}
+
+// 전체 파싱
+function parseAiResponse(raw) {
+    return raw.split('---SEP---')
+        .map(b => b.trim()).filter(Boolean)
+        .map((block, idx) => ({
+            index:       idx,
+            question:    extractBetween(block, '[[QUESTION]]',    '[[PASSAGE]]'),
+            passage:     extractBetween(block, '[[PASSAGE]]',     '[[OPTIONS]]'),
+            options:     extractBetween(block, '[[OPTIONS]]',     '[[ANSWER]]'),
+            answer:      extractBetween(block, '[[ANSWER]]',      '[[EXPLANATION]]'),
+            explanation: extractBetween(block, '[[EXPLANATION]]', null)
+        }));
+}
+
+// DB 저장
+async function saveToDb() {
+    const questions = collectCurrentState();
+    const res = await fetch('/api/save-questions', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            examType: document.getElementById('exam-type').value,
+            questions
+        })
+    });
+    const data = await res.json();
+    alert(`${data.savedCount}개 문제가 DB에 저장되었습니다.`);
+}
+
+// 복사하기
+function copyAll() {
+    const text = collectCurrentState()
+        .map((q, i) => [
+            `[문제 ${i+1}] ${q.question}`,
+            q.passage,
+            q.options,
+            `정답: ${q.answer}`
+        ].join('\n')).join('\n\n---\n\n');
+    navigator.clipboard.writeText(text).then(() => alert('복사 완료!'));
+}
+```
+
+---
+
+## 5. API 명세
+
+### 5.1 저장 API
+
+**POST `/api/save-questions`**
+
+Request Body:
 ```json
 {
-  "title": "2025 수능 18번 변형",
   "examType": "모의고사",
-  "difficultyLevel": "중",
-  "rawResponse": "[[QUESTION]]...---SEP---[[QUESTION]]..."
+  "questions": [
+    {
+      "questionType": "빈칸추론",
+      "questionNumber": 1,
+      "questionText": "다음 빈칸에 들어갈...",
+      "passage": "Although the...",
+      "options": "(1) curiosity\n(2) anxiety\n...",
+      "answer": "3",
+      "explanation": "이 글은..."
+    }
+  ]
 }
 ```
 
-**Response (200 OK):**
+Response:
 ```json
-{ "id": 1, "message": "저장 완료" }
+{ "savedCount": 3, "ids": [1, 2, 3] }
+```
+
+### 5.2 ExamMaker 연동 API (Phase 3)
+
+**GET `/api/questions`**
+```json
+[
+  { "id": 1, "questionType": "빈칸추론", "questionText": "...", "passage": "...", "options": "...", "createdAt": "..." },
+  ...
+]
+```
+
+**GET `/api/questions/{id}`**  — 단일 문제 상세
+
+**GET `/api/answers/{questionId}`**
+```json
+{ "id": 1, "questionId": 1, "answer": "3", "explanation": "이 글은..." }
 ```
 
 ---
 
-## 5. UI/UX Design
+## 6. pom.xml 추가 의존성
 
-### 5.1 로딩 인디케이터 (Phase 2) — `questionForm.jsp`
+```xml
+<!-- JPA -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-jpa</artifactId>
+</dependency>
 
-```
-[폼 제출 버튼 클릭]
-    ↓
-┌─────────────────────────────────┐
-│  문제를 생성하고 있습니다...      │
-│  ████████████░░░░  AI 분석 중   │
-│  예상 시간: 20~60초              │
-└─────────────────────────────────┘
-  (버튼 disabled, 폼 오버레이 표시)
-```
-
-- 폼 submit 이벤트에서 오버레이 div `display:block`
-- fetch/XHR 완료 시 오버레이 제거
-
-### 5.2 재생성 버튼 + 인라인 편집 (Phase 2) — `result.jsp`
-
-```
-┌──────────────────────────────────────────────┐
-│ 1번. 다음 빈칸에 들어갈 말로 가장 적절한 것은?  │
-│                                              │
-│ [지문 내용...]                                │
-│                                              │
-│ ① opt1  ② opt2  ③ opt3  ④ opt4  ⑤ opt5    │
-│ 정답: ③                                      │
-│                                              │
-│ [✏️ 편집]  [🔄 재생성]                        │  ← 신규 버튼
-└──────────────────────────────────────────────┘
-```
-
-- **편집 버튼**: 해당 문제 div를 `contenteditable="true"`로 전환
-- **재생성 버튼**: 해당 문제의 `questionType`, `passageText`를 추출하여 `/api/regenerate-question` 호출 후 해당 문제 div 교체
-
-### 5.3 저장/목록 (Phase 3) — `result.jsp`, `questionList.jsp`
-
-```
-result.jsp 하단:
-  [💾 이 문제 세트 저장하기]  → POST /api/save-questions
-
-questionList.jsp:
-  ┌─────────────────────────────────────────┐
-  │ 📂 저장된 문제 목록                       │
-  ├─────────────────────────────────────────┤
-  │ 2026-03-24 │ 수능 18번 변형 │ 중 │ [보기] │
-  │ 2026-03-23 │ 외부지문 연습  │ 상 │ [보기] │
-  └─────────────────────────────────────────┘
+<!-- H2 (파일 모드 — DB 준비 전 임시) -->
+<dependency>
+    <groupId>com.h2database</groupId>
+    <artifactId>h2</artifactId>
+    <scope>runtime</scope>
+</dependency>
 ```
 
 ---
 
-## 6. PromptBuilder 상세 설계
+## 7. application.properties 추가 설정
 
-### 6.1 클래스 구조
+```properties
+# H2 파일 모드 (나중에 MySQL로 교체)
+spring.datasource.url=jdbc:h2:file:./prepai-db
+spring.datasource.driver-class-name=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=
 
-```java
-@Component
-public class PromptBuilder {
+# JPA
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=false
+spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
 
-    // 진입점: GeminiController에서 호출
-    public String build(
-        String examType,
-        String passageText,
-        List<String> questionNos,
-        List<String> questionTypes,
-        String difficultyLevel,
-        List<String> modifications,
-        boolean hasFile,
-        Map<String, String> counts
-    ) {
-        StringBuilder prompt = new StringBuilder();
-        appendOutputFormat(prompt);        // 공통 출력 포맷
-        appendExamConditions(prompt, difficultyLevel, modifications);
-        appendPassageSource(prompt, examType, passageText, questionNos, hasFile);
-        appendQuestionTypes(prompt, questionTypes, counts);
-        return prompt.toString();
-    }
-
-    private void appendOutputFormat(StringBuilder p) { ... }
-    private void appendExamConditions(StringBuilder p, ...) { ... }
-    private void appendPassageSource(StringBuilder p, ...) { ... }
-    private void appendQuestionTypes(StringBuilder p, ...) { ... }
-    private void appendTypeRule(StringBuilder p, String type) { ... }
-}
-```
-
-### 6.2 단일 문제 재생성용 프롬프트
-
-```java
-public String buildSingle(String questionType, String passageText, String difficultyLevel) {
-    // 1개 문제만 생성하는 축약 프롬프트
-    // appendOutputFormat + appendTypeRule(questionType) 만 포함
-}
+# H2 콘솔 (개발용)
+spring.h2.console.enabled=true
+spring.h2.console.path=/h2-console
 ```
 
 ---
 
-## 7. ResponseValidator 상세 설계
+## 8. 예외 처리 설계
 
-### 7.1 클래스 구조
-
-```java
-@Component
-public class ResponseValidator {
-
-    private static final int MAX_RETRY = 3;
-
-    // GeminiService + PromptBuilder를 받아 검증+재시도 일괄 처리
-    public String validateWithRetry(
-        String initialResponse,
-        String prompt,
-        MultipartFile file,
-        GeminiService geminiService
-    ) {
-        String response = initialResponse;
-        for (int i = 0; i < MAX_RETRY; i++) {
-            if (isValid(response)) return response;
-            log.warn("응답 형식 오류 ({}회차), 재시도...", i + 1);
-            response = geminiService.getGeminiResponse(prompt, file);
-        }
-        if (!isValid(response)) throw new RuntimeException("AI 응답 형식 오류: 3회 재시도 실패");
-        return response;
-    }
-
-    public boolean isValid(String response) {
-        // 1. [[QUESTION]] 태그 최소 1개 존재
-        // 2. [[OPTIONS]] 존재
-        // 3. [[ANSWER]] 존재
-        // 4. ---SEP--- 존재 (다중 문제일 때)
-        return response.contains("[[QUESTION]]")
-            && response.contains("[[OPTIONS]]")
-            && response.contains("[[ANSWER]]")
-            && response.contains("---SEP---");
-    }
-}
-```
+| 상황 | 처리 |
+|------|------|
+| AI 응답 파싱 실패 (태그 없음) | 해당 블록 스킵 + 경고 로그, 나머지 저장 계속 |
+| DB 저장 실패 | 클라이언트에 에러 메시지 반환, 부분 저장 결과 포함 |
+| 재생성 API 실패 | 기존 카드 유지, 화면에 토스트 에러 메시지 |
+| 빈 문제 목록 저장 시도 | JS 클라이언트 validation: 0개면 저장 버튼 비활성화 |
+| ResponseValidator 3회 실패 | 기존 동작 유지 (RuntimeException → 에러 페이지) |
 
 ---
 
-## 8. Error Handling
+## 9. result.jsp 처리 방침
 
-### 8.1 에러 시나리오
-
-| 시나리오 | 처리 방법 | 사용자 노출 |
-|---------|---------|-----------|
-| Gemini API 호출 실패 | catch → 에러 뷰 반환 | "AI 서버 오류입니다. 잠시 후 다시 시도해 주세요." |
-| 형식 오류 3회 초과 | RuntimeException → 에러 뷰 | "문제 형식 오류가 반복됩니다. 문제 수를 줄여보세요." |
-| DB 저장 실패 | DataAccessException catch | "저장에 실패했습니다. 다시 시도해 주세요." |
-| 재생성 중 오류 | JS에서 fetch 오류 처리 | 해당 문제 아래 인라인 에러 메시지 |
-
-### 8.2 에러 뷰
-
-- `src/main/webapp/WEB-INF/views/error.jsp` 신규 생성
-- 에러 메시지 + "돌아가기" 버튼
+기존 `result.jsp`는 **삭제하지 않고 보존**한다.
+- `GeminiController`에서 `"reviewResult"`로 라우팅 변경 후 result.jsp는 더 이상 호출되지 않음
+- A4 레이아웃, html2pdf.js 코드는 result.jsp에 그대로 남음
+- ExamMaker 개발 시 참고 자료로 활용
 
 ---
 
-## 9. Security Considerations
+## 10. 검증 체크리스트
 
-- [ ] `GEMINI_API_KEY` 환경변수 분리 (`application-local.properties` 사용)
-- [ ] `application.properties`에 `gemini.api.key=${GEMINI_API_KEY}` 형태로 변경
-- [ ] `.gitignore`에 `application-local.properties` 추가
-- [ ] DB는 로컬 H2 파일 모드 → 외부 노출 없음
-- [ ] XSS: JSP에서 사용자 입력 출력 시 `<c:out>` 또는 JSTL escaping 사용
-
----
-
-## 10. Test Plan
-
-### 10.1 Test Scope
-
-| Type | Target | Method |
-|------|--------|--------|
-| 수동 테스트 | ResponseValidator.isValid() | 형식 맞는/틀린 샘플 문자열로 검증 |
-| 수동 테스트 | PromptBuilder.build() | 각 문제 유형 선택 후 생성된 프롬프트 콘솔 확인 |
-| 통합 테스트 | 재생성 API | 단일 문제 재생성 후 파싱 성공 여부 |
-| 통합 테스트 | DB 저장/조회 | 저장 후 목록 페이지에서 확인 |
-
-### 10.2 Test Cases
-
-- [ ] 빈칸추론 1개 생성 → `[[QUESTION]]`, `---SEP---` 포함 확인
-- [ ] 6개 유형 동시 선택 → 형식 오류 없이 모두 반환
-- [ ] 의도적으로 빈 응답 주입 → ResponseValidator가 재시도 발동 확인
-- [ ] 문제 저장 → questionList.jsp에서 조회 확인
+- [ ] 문제 생성 후 `reviewResult.jsp` 로드 (result.jsp 대신)
+- [ ] `---SEP---` 파싱이 정확히 동작하고 문제 카드 수 일치
+- [ ] [재생성] 버튼: 해당 카드만 교체됨
+- [ ] [복사하기] 버튼: 클립보드에 전체 문제 텍스트 복사됨
+- [ ] [DB에 저장]: questions + answers 테이블 각각 저장 확인 (H2 콘솔)
+- [ ] `GET /api/questions` 저장된 문제 반환
+- [ ] `GET /api/answers/{id}` 정답+해설 반환
+- [ ] `GeminiController`에 A4/PDF 관련 코드 없음
 
 ---
 
 ## 11. Implementation Guide
 
-### 11.1 File Structure
+### 11.1 Module Map
+
+| Module | 작업 | 대상 파일 |
+|--------|------|-----------|
+| **M1** DB 기반 | JPA + H2 설정, 엔티티, 리포지토리 | `pom.xml`, `application.properties`, `Question.java`, `Answer.java`, `QuestionRepository.java`, `AnswerRepository.java` |
+| **M2** 검토 뷰 | 라우팅 변경 + 검토 화면 구현 | `GeminiController.java`, `reviewResult.jsp`, `reviewResult.js` |
+| **M3** 저장 기능 | 저장 서비스 + 저장 API | `QuestionSaveService.java`, `GeminiController.java` (+saveQuestions) |
+| **M4** ExamMaker API | 조회 REST API | `GeminiController.java` (+getQuestions, +getAnswers) |
+
+### 11.2 Session Guide
 
 ```
-src/main/java/com/example/demo/
-├── controller/
-│   └── GeminiController.java      ← 수정 (PromptBuilder, Validator 주입)
-├── geminiAI/
-│   └── GeminiService.java         ← 수정 완료 (maxOutputTokens)
-├── service/                        ← 신규 패키지
-│   ├── PromptBuilder.java          ← 신규
-│   └── ResponseValidator.java      ← 신규
-├── entity/                         ← 신규 패키지 (Phase 3)
-│   ├── QuestionSet.java            ← 신규
-│   └── Question.java               ← 신규
-└── repository/                     ← 신규 패키지 (Phase 3)
-    └── QuestionSetRepository.java  ← 신규
+세션 1: M1 (DB 기반)
+  pom.xml + application.properties 수정
+  → Question.java, Answer.java 엔티티
+  → QuestionRepository.java, AnswerRepository.java
+  → 앱 기동 + H2 콘솔(/h2-console)에서 테이블 생성 확인
 
-src/main/webapp/WEB-INF/views/
-├── questionForm.jsp               ← 수정 (로딩 오버레이 추가)
-├── result.jsp                     ← 수정 (재생성 버튼, 저장 버튼)
-├── questionList.jsp               ← 신규 (Phase 3)
-└── error.jsp                      ← 신규
+세션 2: M2 (검토 뷰)
+  GeminiController "result" → "reviewResult" 1줄 변경
+  → reviewResult.jsp 구조 작성
+  → reviewResult.js 파서 + 카드 렌더링 구현
+  → 실제 문제 생성해서 카드 표시 확인
 
-src/main/resources/static/
-├── css/
-│   ├── questionForm.css           ← 수정 (로딩 오버레이 스타일)
-│   └── result.css                 ← 수정 (버튼 스타일)
-└── js/
-    ├── questionForm.js            ← 수정 (로딩 이벤트)
-    └── result.js                  ← 수정 (재생성/편집/저장 인터랙션)
+세션 3: M3 (저장 기능)
+  QuestionSaveService.java 작성
+  → GeminiController POST /api/save-questions 추가
+  → reviewResult.js 저장/복사 버튼 연동
+  → H2 콘솔에서 저장 데이터 직접 확인
+
+세션 4: M4 (ExamMaker API) — DB 준비 완료 후 진행
+  GeminiController GET 엔드포인트 추가
+  → ExamMaker에서 호출 테스트
 ```
-
-### 11.2 Implementation Order
-
-**Phase 1 — AI 품질·안정성 (먼저 구현)**
-1. [ ] `application.properties` API 키 환경변수 분리
-2. [ ] `PromptBuilder.java` 생성 — 기존 GeminiController 프롬프트 로직 이전
-3. [ ] `ResponseValidator.java` 생성 — 형식 검증 + 재시도
-4. [ ] `GeminiController.java` 리팩토링 — 위 두 컴포넌트 주입
-5. [ ] `error.jsp` 생성
-
-**Phase 2 — UX 개선**
-6. [ ] `questionForm.jsp` + `questionForm.js` — 로딩 오버레이
-7. [ ] `GeminiController.regenerateQuestion()` 엔드포인트 추가
-8. [ ] `result.jsp` + `result.js` — 재생성 버튼 + 인라인 편집
-
-**Phase 3 — DB 저장**
-9. [ ] `pom.xml` JPA + H2 의존성 추가
-10. [ ] `QuestionSet.java`, `Question.java` 엔티티 생성
-11. [ ] `QuestionSetRepository.java` 생성
-12. [ ] `GeminiController` 저장/조회 API 추가
-13. [ ] `questionList.jsp` 생성
-14. [ ] `result.jsp` 저장 버튼 추가
-
-### 11.3 Session Guide
-
-> `/pdca do prepai-v2 --scope module-1` 형태로 단계별 구현 가능
-
-#### Module Map
-
-| Module | Scope Key | Description | 예상 작업량 |
-|--------|-----------|-------------|:-----------:|
-| Phase 1: 품질 안정성 | `module-1` | PromptBuilder, ResponseValidator, API 키 분리, GeminiController 리팩토링 | 중간 |
-| Phase 2: UX 개선 | `module-2` | 로딩 오버레이, 재생성 API, 재생성 버튼, 인라인 편집 | 중간 |
-| Phase 3: DB 저장 | `module-3` | JPA 설정, 엔티티, 저장/조회 API, 목록 페이지 | 중간 |
-
-#### Recommended Session Plan
-
-| Session | Phase | Scope | 내용 |
-|---------|-------|-------|------|
-| Session 1 | Plan + Design | 전체 | 완료 |
-| Session 2 | Do | `--scope module-1` | PromptBuilder + Validator + 리팩토링 |
-| Session 3 | Do | `--scope module-2` | 로딩 UX + 재생성 기능 |
-| Session 4 | Do | `--scope module-3` | DB 저장 기능 |
-| Session 5 | Check + Report | 전체 | Gap 분석 + 완료 보고서 |
 
 ---
 
@@ -491,4 +579,5 @@ src/main/resources/static/
 
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
-| 0.1 | 2026-03-24 | 초기 설계 (Option C 선택) | 개발팀 |
+| 1.0 | 2026-03-25 | 초기 설계 — Option C 선택, questions/answers 2테이블 구조 확정 | 개발팀 |
+| 1.1 | 2026-03-26 | FR-13/FR-14 반영: PromptBuilder HINT 수정 — (A)(B)(C)(D) 단락 구분자 보존, `번호.` 패턴 문제 번호 인식 | 개발팀 |

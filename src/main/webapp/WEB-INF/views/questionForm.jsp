@@ -115,10 +115,10 @@
                         </div>
 
                         <div class="form-card">
-                            <label class="form-label">🔄 지문 변형 여부 (중복 선택 가능)</label>
+                            <label class="form-label">🔄 지문 변형 여부 (단일 선택 가능)</label>
                             <div class="checkbox-group">
-                                <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" name="modification" value="원본그대로"> 원본 지문 그대로 출제 (내신 암기 확인용)</label>
-                                <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" name="modification" value="지문변형"> 지문 변형 출제 (유의어 대체, 문장 구조 변경 등)</label>
+                                <label style="display:flex; align-items:center; gap:8px;"><input type="radio" name="modification" value="원본그대로"> 원본 지문 그대로 출제 (내신 암기 확인용)</label>
+                                <label style="display:flex; align-items:center; gap:8px;"><input type="radio" name="modification" value="지문변형"> 지문 변형 출제 (유의어 대체, 문장 구조 변경 등)</label>
                             </div>
                         </div>
                     </div>
@@ -127,6 +127,19 @@
 
                 <button type="submit" class="btn-submit">AI 문제 생성하기 🚀</button>
             </form>
+        </div>
+
+        <%-- 🔴 문제 생성 중 로딩 오버레이 — 폼 제출 시 JS가 활성화한다. 🔴 --%>
+        <div id="loading-overlay">
+            <div class="loading-box">
+                <div class="loading-spinner"></div>
+                <p class="loading-title">AI가 문제를 생성하고 있습니다</p>
+                <div class="loading-bar-wrap">
+                    <div class="loading-bar-fill" id="loading-bar"></div>
+                </div>
+                <p class="loading-count" id="loading-count">0 / 0개</p>
+                <p class="loading-eta" id="loading-eta">준비 중...</p>
+            </div>
         </div>
 
     </body>

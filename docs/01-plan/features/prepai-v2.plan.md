@@ -1,11 +1,11 @@
-# PrepAI v2 - AI 영어 문제 품질 향상 계획서
+# PrepAI v2 - AI 문제 생성 전용 플랫폼
 
-> **Summary**: AI 문제 품질 개선, 응답 안정화, 문제 저장/재생성 기능 추가로 실사용 가능한 영어 문제 생성 플랫폼 완성
+> **Summary**: PrepAI는 Gemini AI로 영어 문제를 생성하고 DB에 저장하는 것에만 집중한다. 시험지/PDF 렌더링은 별도 프로그램이 담당하도록 역할을 완전 분리한다.
 >
 > **Project**: PrepAI
 > **Version**: 2.0.0
 > **Author**: 개발팀
-> **Date**: 2026-03-24
+> **Date**: 2026-03-25
 > **Status**: Draft
 
 ---
@@ -14,10 +14,10 @@
 
 | Perspective | Content |
 |-------------|---------|
-| **Problem** | AI가 생성하는 영어 시험 문제의 품질이 불안정하고, 형식 오류가 자주 발생하며, 생성 후 저장/수정 수단이 없어 교사가 실무에서 활용하기 어려움 |
-| **Solution** | 프롬프트 엔지니어링 고도화 + 응답 검증/재시도 로직 + 로딩 UX + 문제 재생성/편집 + DB 저장 기능 도입 |
-| **Function/UX Effect** | 문제 생성 후 즉시 수정·저장·재사용 가능하고, 생성 중 진행 상태를 확인할 수 있어 교사 워크플로우가 크게 단축됨 |
-| **Core Value** | 영어 교사가 수업·시험 준비 시간을 절반 이상 단축할 수 있는 신뢰할 수 있는 AI 문제 생성 도구 |
+| **Problem** | PrepAI가 문제 생성과 시험지 렌더링을 동시에 처리하여 앱이 무겁고 느림. 생성 오류가 시험지 화면 자체를 깨트려 교사에게 직접 노출됨 |
+| **Solution** | PrepAI = 문제 생성 + DB 저장 전담. 시험지/PDF 렌더링은 DB를 읽는 별도 프로그램으로 완전 분리 |
+| **Function/UX Effect** | PrepAI는 가볍고 빠르게 동작. 생성된 문제를 리스트로 검토 후 DB 저장. 다른 프로그램이 DB에서 문제를 불러와 시험지 제작 |
+| **Core Value** | 단일 책임 원칙 적용으로 각 앱이 자기 역할에만 집중 → 성능·안정성·유지보수성 동시 확보 |
 
 ---
 
@@ -27,11 +27,11 @@
 
 | Key | Value |
 |-----|-------|
-| **WHY** | 교사가 직접 문제를 만드는 데 소요하는 시간 절감 + AI 품질 불신 해소 |
+| **WHY** | 문제 생성과 시험지 렌더링이 한 앱에 있어 무겁고 느림 → 역할 분리로 각각 빠르게 |
 | **WHO** | 한국 고등학교 영어 선생님 (수능·모의고사 대비 문제 제작) |
-| **RISK** | Gemini API 응답 형식 불안정, DB 도입 시 기존 JSP 구조와의 정합성 |
-| **SUCCESS** | 형식 오류율 < 5%, 교사 피드백 만족도 4/5 이상, 문제 저장·재사용 가능 |
-| **SCOPE** | Phase 1: 품질·안정성 / Phase 2: UX 개선 / Phase 3: DB 저장 |
+| **RISK** | DB 스키마(questions + answers 2개 테이블)를 잘 설계해야 ExamMaker가 올바르게 읽을 수 있음. DB는 아직 미생성 — 연동은 DB 준비 후 진행 |
+| **SUCCESS** | PrepAI는 문제 생성 + DB 저장만 담당. 시험지 관련 코드가 PrepAI에 없음 |
+| **SCOPE** | Phase 1: AI 품질·안정성 / Phase 2: 생성 결과 검토 UX + DB 저장 / Phase 3: DB API (ExamMaker 연동용) |
 
 ---
 
@@ -39,16 +39,35 @@
 
 ### 1.1 Purpose
 
-현재 PrepAI는 기본 문제 생성 기능은 동작하지만, 교사가 실무에서 사용하기에는 다음과 같은 한계가 있다:
+**핵심 아키텍처 결정**: PrepAI의 역할을 "AI 문제 생성 전담"으로 명확히 한정한다.
 
-- Gemini 응답에서 `[[TAG]]` 누락, `---SEP---` 구분자 오류가 자주 발생
-- 생성된 문제 중 일부만 수정하거나 재생성하는 수단이 없음
-- 생성 시간이 20-60초임에도 로딩 피드백이 없음
-- 생성된 문제를 저장할 수 없어 매번 새로 생성해야 함
+**현재 문제**:
+- 문제 생성(Gemini API) + 시험지 렌더링(A4 레이아웃/페이지네이션)을 한 앱에서 처리
+- 둘 다 무거운 작업이라 응답이 느리고, 생성 오류가 시험지 화면을 직접 깨트림
+- 기능이 뒤엉켜 있어 한쪽을 고치면 다른 쪽이 깨지는 일이 반복됨
+
+**해결 방향**:
+
+```
+[기존] PrepAI 단일 앱
+  ┌─────────────────────────────────────────┐
+  │  문제 생성(Gemini) + 시험지 렌더링(PDF)  │  ← 무겁고 느림
+  └─────────────────────────────────────────┘
+
+[개선] 두 앱으로 분리
+  ┌──────────────────┐       ┌──────────────────────┐
+  │  PrepAI          │  DB   │  ExamMaker (별도 앱)  │
+  │  - Gemini 호출   │──────→│  - DB에서 문제 조회   │
+  │  - 문제 파싱     │       │  - A4 시험지 렌더링   │
+  │  - DB 저장       │       │  - PDF 출력           │
+  └──────────────────┘       └──────────────────────┘
+```
+
+PrepAI v2의 목표: 왼쪽 박스를 제대로 만드는 것.
 
 ### 1.2 Background
 
-한국 고등학교 영어 교육에서 수능/모의고사 유형 문제는 지문이 바뀔 때마다 새 문제가 필요하다. 기존 문제은행은 지문 고정 문제 위주라 다양한 지문에 대응하기 어렵다. PrepAI는 임의 지문으로 즉시 문제를 생성할 수 있지만, AI 품질 불안정으로 교사의 신뢰를 얻지 못하고 있다.
+한국 고등학교 영어 교육에서 수능/모의고사 유형 문제는 지문이 바뀔 때마다 새 문제가 필요하다. PrepAI는 Gemini API로 문제를 즉시 생성할 수 있지만, 생성 품질 불안정 + 앱 성능 저하로 교사의 신뢰를 얻지 못하고 있다. 역할 분리를 통해 PrepAI를 가볍고 빠른 문제 생성기로 만들고, 시험지 제작은 별도 앱에 위임한다.
 
 ### 1.3 Related Documents
 
@@ -60,7 +79,7 @@
 
 ## 2. Scope
 
-### 2.1 In Scope
+### 2.1 In Scope (PrepAI가 담당할 것)
 
 **Phase 1 - AI 품질 및 안정성 개선**
 - [ ] 문제 유형별 전용 프롬프트 분리 및 고도화 (13개 유형)
@@ -69,21 +88,27 @@
 - [ ] 형식 오류 발생 시 자동 재시도 (최대 3회)
 - [ ] API 키 환경 변수 분리 (보안)
 
-**Phase 2 - UX 개선**
+**Phase 2 - 생성 결과 검토 UX + DB 저장**
 - [ ] 문제 생성 중 로딩 인디케이터 + 진행 메시지 표시
-- [ ] 결과 페이지에서 개별 문제 재생성 버튼
-- [ ] 결과 페이지에서 문제 텍스트 인라인 편집 기능
-- [ ] 오류 발생 시 사용자 친화적 메시지 표시
+- [ ] 생성 완료 후 **문제 리스트 검토 화면** 표시 (시험지 렌더링 없음)
+- [ ] 검토 화면에서 개별 문제 재생성 버튼
+- [ ] 검토 화면에서 문제 텍스트 인라인 편집
+- [ ] **"DB에 저장" 버튼** — 검토 완료된 문제 세트를 DB에 저장
+- [ ] **"복사하기" 버튼** — 생성된 문제 텍스트 클립보드 복사
+- [ ] 저장된 문제 목록 조회 페이지 (PrepAI 내에서)
 
-**Phase 3 - 문제 저장 (DB)**
-- [ ] H2/MySQL DB 연동 (문제 저장 테이블 설계)
-- [ ] 생성된 문제 세트 저장 기능
-- [ ] 저장된 문제 목록 조회 페이지
-- [ ] 저장된 문제 불러오기 및 PDF 재출력
+**Phase 3 - DB 및 외부 연동 API**
+- [ ] H2/MySQL DB 연동 (문제 저장 스키마 설계 — ExamMaker가 읽을 수 있도록)
+- [ ] `GET /api/question-sets` — 저장된 문제 세트 목록 조회
+- [ ] `GET /api/question-sets/{id}` — 문제 세트 상세 + 문제 전체 조회
+- [ ] `GET /api/question-sets/{id}/questions` — 문제만 JSON 조회 (ExamMaker 연동용)
 
-### 2.2 Out of Scope
+### 2.2 Out of Scope (PrepAI가 하지 않을 것)
 
-- 사용자 인증/로그인 시스템 (별도 계획 필요)
+- **시험지 렌더링** (A4 레이아웃, 페이지네이션) — ExamMaker 담당
+- **PDF 출력/다운로드** — ExamMaker 담당
+- **답안지 화면 렌더링** — ExamMaker 담당
+- 사용자 인증/로그인 시스템
 - 모바일 앱 버전
 - 다른 AI 모델(OpenAI, Claude) 연동
 - 학생용 풀이 기능 (채점, 오답노트)
@@ -100,13 +125,18 @@
 | FR-01 | 각 문제 유형별 전용 프롬프트 분리 및 고도화 | High | Pending |
 | FR-02 | AI 응답 형식 검증 및 자동 재시도 (최대 3회) | High | Pending |
 | FR-03 | 생성 중 로딩 상태 표시 (진행 메시지 포함) | High | Pending |
-| FR-04 | 결과 페이지에서 개별 문제 재생성 API | High | Pending |
-| FR-05 | 결과 페이지에서 문제 텍스트 인라인 편집 | Medium | Pending |
-| FR-06 | 생성된 문제 세트 DB 저장 | Medium | Pending |
-| FR-07 | 저장된 문제 목록 조회 페이지 | Medium | Pending |
-| FR-08 | 저장된 문제 불러오기 및 PDF 재출력 | Medium | Pending |
-| FR-09 | API 키 환경 변수 분리 (.env / application-local.properties) | High | Pending |
-| FR-10 | 오류 발생 시 사용자 친화 에러 페이지 | Medium | Pending |
+| FR-04 | 생성 완료 후 문제 리스트 검토 화면 표시 (시험지 렌더링 없음) | High | Pending |
+| FR-05 | 검토 화면에서 개별 문제 재생성 API | Medium | Pending |
+| FR-06 | 검토 화면에서 문제 텍스트 인라인 편집 | Medium | Pending |
+| FR-07 | "DB에 저장" 버튼 — questions 테이블 + answers 테이블에 각각 저장 | High | Pending |
+| FR-08 | "복사하기" 버튼 — 생성 문제 텍스트 클립보드 복사 | Medium | Pending |
+| FR-09 | 저장된 문제 목록 조회 페이지 | Medium | Pending |
+| FR-10 | GET /api/questions/{id} — 문제 JSON API (ExamMaker 연동용) | High | Pending |
+| FR-10b | GET /api/answers/{question_id} — 답안지 JSON API (ExamMaker 연동용) | High | Pending |
+| FR-11 | API 키 환경 변수 분리 (.env / application-local.properties) | High | Pending |
+| FR-12 | 오류 발생 시 사용자 친화 에러 페이지 | Medium | Pending |
+| FR-13 | PDF 추출 시 (A)(B)(C)(D) 단락 구분자 원문 그대로 보존 | High | In Progress |
+| FR-14 | 문제 번호 인식: `번호.` 패턴으로 정확히 식별 — `[43~45]` 같은 섹션 헤더와 구분 | High | In Progress |
 
 ### 3.2 Non-Functional Requirements
 
@@ -116,7 +146,7 @@
 | 응답 시간 | 문제 생성 완료까지 평균 60초 이내 | Gemini API 호출 시간 측정 |
 | 재시도 투명성 | 재시도 발생 시 서버 로그에 기록 | 로그 확인 |
 | 보안 | API 키가 소스코드/git에 노출되지 않을 것 | .gitignore + 환경변수 확인 |
-| 사용성 | 로딩 상태가 항상 표시될 것 | 수동 QA |
+| DB 호환성 | ExamMaker가 DB 스키마를 변경 없이 읽을 수 있을 것 | ExamMaker 연동 테스트 |
 
 ---
 
@@ -127,16 +157,20 @@
 - [ ] 13개 문제 유형 모두 전용 프롬프트로 분리 완료
 - [ ] 형식 검증 로직이 서버 측에서 동작하고 재시도 로그가 남음
 - [ ] 로딩 인디케이터가 생성 시작~완료 구간에 표시됨
-- [ ] 개별 문제 재생성 버튼이 결과 페이지에 동작함
-- [ ] 문제 세트를 DB에 저장하고 다시 불러올 수 있음
+- [ ] 생성 완료 후 **문제 리스트 검토 화면**이 표시됨 (시험지 렌더링 코드 없음)
+- [ ] "DB에 저장" 버튼이 동작하고 문제가 DB에 기록됨
+- [ ] "복사하기" 버튼이 동작하고 클립보드에 문제 텍스트가 복사됨
+- [ ] `GET /api/questions/{id}` API가 문제 JSON을 반환함
+- [ ] `GET /api/answers/{question_id}` API가 답안지 JSON을 반환함
+- [ ] 문제와 답안지가 **별도 테이블**(questions, answers)에 저장됨
+- [ ] **PrepAI 코드에 A4 레이아웃/PDF 관련 코드가 없음** (역할 분리 완료 기준)
 - [ ] Gemini API 키가 환경 변수로 분리됨
-- [ ] 오류 발생 시 사용자에게 명확한 메시지가 표시됨
 
 ### 4.2 Quality Criteria
 
 - [ ] 형식 오류 발생률 5% 미만 (수동 테스트 100회 기준)
 - [ ] 재시도 로직이 3회 내에 정상 응답을 반환함
-- [ ] 기존 기능 (PDF 다운로드, 학생/교사 뷰) 정상 동작 유지
+- [ ] DB에 저장된 문제를 API로 조회했을 때 원본과 동일한 내용 반환
 
 ---
 
@@ -145,10 +179,9 @@
 | Risk | Impact | Likelihood | Mitigation |
 |------|--------|------------|------------|
 | Gemini 응답이 재시도 3회 후에도 형식 오류 | High | Medium | 3회 실패 시 사용자에게 오류 안내 + 부분 파싱 fallback 적용 |
+| DB 스키마 설계 미흡으로 ExamMaker 연동 실패 | High | Medium | Phase 3 전에 ExamMaker가 필요한 필드 목록을 먼저 정의 |
 | 프롬프트 변경 후 다른 유형 품질 저하 | Medium | Medium | 유형별 독립 프롬프트 관리, 변경 시 해당 유형만 테스트 |
-| DB 도입 시 기존 JSP 구조 복잡도 증가 | Medium | High | 간단한 H2 인메모리 DB로 시작, JPA Entity 최소화 |
 | API 키 환경변수 이전 시 기존 배포 환경 설정 필요 | Low | High | application-local.properties + .gitignore로 단계적 이전 |
-| 재생성 API 추가 시 서버 부하 증가 | Low | Low | 동일 Gemini API 호출, 별도 rate limit 없음 |
 
 ---
 
@@ -159,14 +192,15 @@
 | Resource | Type | Change Description |
 |----------|------|--------------------|
 | `GeminiService.java` | Java Service | 프롬프트 분리, 검증/재시도 로직 추가 |
-| `GeminiController.java` | Java Controller | 재생성 API 엔드포인트 추가, 저장 API 추가 |
+| `GeminiController.java` | Java Controller | 응답을 reviewResult로 전달, 재생성/저장 API 추가 |
 | `application.properties` | Config | API 키 환경변수로 이전 |
-| `result.jsp` | View (JSP) | 재생성 버튼, 인라인 편집, 저장 버튼 UI 추가 |
-| `result.js` | JavaScript | 재생성/편집/저장 인터랙션 로직 추가 |
+| `result.jsp` | View (JSP) | **제거 또는 미사용**: 시험지 렌더링 → Out of Scope |
+| `reviewResult.jsp` | View (JSP) | **신규**: 문제 리스트 검토 뷰 + 저장/복사 버튼 |
+| `reviewResult.js` | JavaScript | **신규**: 검토 인터랙션, 저장/복사 버튼 액션 |
 | `questionForm.jsp` | View (JSP) | 로딩 인디케이터 UI 추가 |
 | `questionForm.js` | JavaScript | 폼 제출 시 로딩 상태 처리 |
 | `pom.xml` | Maven | JPA, H2/MySQL 의존성 추가 (Phase 3) |
-| DB Entity (신규) | Java | QuestionSet, Question 엔티티 |
+| DB Entity (신규) | Java | `QuestionSet`, `Question` JPA 엔티티 (ExamMaker 호환 스키마) |
 
 ### 6.2 Current Consumers
 
@@ -174,13 +208,13 @@
 |----------|-----------|-----------|--------|
 | `GeminiService.generateQuestion()` | READ | `GeminiController.generateQuestions()` | 검증/재시도 로직 추가 후 호환 유지 필요 |
 | `application.properties` `gemini.api.key` | READ | `GeminiService` @Value 주입 | 환경변수 이전 시 로컬 설정 파일 필요 |
-| `result.jsp` 파싱 로직 | READ | `result.js` `---SEP---` 파서 | 신규 태그 추가 시 파서 업데이트 필요 |
+| `result.jsp` | VIEW | 현재 시험지 렌더링 담당 | Phase 2에서 reviewResult.jsp로 교체 |
 
 ### 6.3 Verification
 
 - [ ] GeminiService 변경 후 기존 3가지 입력 모드(모의고사/외부지문/교과서) 모두 정상 동작 확인
 - [ ] 환경변수 이전 후 로컬 및 배포 환경에서 API 키 주입 확인
-- [ ] 결과 페이지 UI 변경 후 PDF 다운로드 레이아웃 깨지지 않음 확인
+- [ ] DB 저장 후 `/api/question-sets/{id}/questions` API 응답이 저장 데이터와 일치 확인
 
 ---
 
@@ -194,71 +228,118 @@
 | **Dynamic** | Feature-based modules | Web apps with backend | ☑ |
 | **Enterprise** | Strict layer separation | High-traffic systems | ☐ |
 
-> **선택 이유**: 현재 Spring Boot MVC 구조를 유지하면서 기능을 확장하는 Dynamic 수준이 적절. 마이크로서비스 전환은 불필요.
+> **선택 이유**: 문제 생성 전담으로 역할이 단순화되므로 Dynamic 수준이 적절. PrepAI는 절대 시험지 렌더링 코드를 포함하지 않는다.
 
 ### 7.2 Key Architectural Decisions
 
 | Decision | Options | Selected | Rationale |
 |----------|---------|----------|-----------|
-| 프롬프트 관리 | 코드 내 하드코딩 / 외부 파일(.txt) / DB | **외부 .txt 파일** | 코드 변경 없이 프롬프트 수정 가능 |
+| 시험지 렌더링 | PrepAI 내 / 별도 앱 | **별도 앱(ExamMaker)** | PrepAI를 가볍게 유지, 역할 분리 |
+| 프롬프트 관리 | 코드 내 하드코딩 / 외부 파일(.txt) | **외부 .txt 파일** | 코드 변경 없이 프롬프트 수정 가능 |
 | 응답 검증 | 클라이언트 JS / 서버 Java | **서버 Java** | 신뢰할 수 있는 검증, 재시도 가능 |
 | DB | H2 인메모리 / H2 파일 / MySQL | **H2 파일 모드** | 별도 DB 서버 불필요, 이후 MySQL 마이그레이션 용이 |
-| ORM | JDBC Template / JPA | **JPA (Spring Data)** | Spring Boot와 자연스러운 통합 |
-| 로딩 UX | 단순 스피너 / 단계별 메시지 | **단계별 메시지** | 60초 대기 시 사용자 불안감 해소 |
+| ExamMaker 연동 | 직접 DB 접근 / REST API | **REST API** | 앱 간 결합도 최소화, 스키마 변경 영향 격리 |
 
 ### 7.3 Architecture Overview
 
 ```
-현재 구조:
-  Browser → GeminiController → GeminiService → Gemini API
+[PrepAI v2 — 문제 생성 전담]
 
-목표 구조 (v2):
-  Browser → GeminiController ─┬→ PromptBuilder (유형별 프롬프트)
-                              ├→ GeminiService → Gemini API
-                              ├→ ResponseValidator (형식 검증/재시도)
-                              └→ QuestionRepository → H2 DB
+  questionForm.jsp
+       ↓ (생성 요청)
+  GeminiController
+       ├→ PromptBuilder (유형별 프롬프트)
+       ├→ GeminiService → Gemini API
+       └→ ResponseValidator (형식 검증/재시도)
+              ↓ (생성 완료)
+       reviewResult.jsp
+       ┌──────────────────────────────────┐
+       │  생성된 문제 리스트 표시           │
+       │  [개별 재생성]  [인라인 편집]      │
+       │  [DB에 저장]    [복사하기]         │
+       └──────────────────────────────────┘
+              ↓ (저장 클릭)
+         H2/MySQL DB
+       ┌──────────────────────────────────┐
+       │  question_sets 테이블             │
+       │  questions 테이블                 │
+       └──────────────────────────────────┘
+              ↓ (REST API)
+  GET /api/question-sets/{id}/questions
+              ↓
+  [ExamMaker — 별도 프로그램, PrepAI 밖]
+       - DB에서 문제 JSON 조회
+       - A4 시험지 렌더링
+       - PDF 출력/다운로드
+       - 답안지 생성
 
-신규 엔드포인트:
-  POST /api/regenerate-question   (단일 문제 재생성)
-  POST /api/save-questions        (문제 세트 저장)
-  GET  /api/question-sets         (저장된 세트 목록)
-  GET  /api/question-sets/{id}    (저장된 세트 상세)
-
-신규 파일:
-  src/main/java/.../service/PromptBuilder.java        (프롬프트 관리)
-  src/main/java/.../service/ResponseValidator.java    (응답 검증)
-  src/main/java/.../entity/QuestionSet.java           (JPA 엔티티)
-  src/main/java/.../entity/Question.java              (JPA 엔티티)
-  src/main/java/.../repository/QuestionSetRepository.java
-  src/main/resources/prompts/                         (유형별 프롬프트 파일)
-  src/main/webapp/WEB-INF/views/questionList.jsp      (저장 목록 페이지)
+핵심 경계:
+  PrepAI ↔ ExamMaker 경계 = REST API (또는 공유 DB 직접 접근)
+  PrepAI 코드 = 시험지/PDF/답안지 관련 코드 없음
 ```
+
+### 7.4 DB Schema (ExamMaker 연동 기준)
+
+> **NOTE**: DB는 아직 생성되지 않았음. 사용자가 DB 준비 후 별도로 안내 예정.
+> 현재는 스키마 설계만 확정해두고, 실제 연동은 DB 준비 후 진행.
+
+PrepAI는 **2개의 테이블**에 데이터를 저장한다:
+
+```
+[테이블 1] questions  — 생성된 문제
+[테이블 2] answers    — 각 문제의 답안지 (정답 + 해설)
+```
+
+```sql
+-- 테이블 1: 문제 (questions)
+-- 문제 본문, 선택지 등 문제 내용 저장
+CREATE TABLE questions (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    question_type   VARCHAR(100),       -- 문제 유형 (13개)
+    question_number INT,                -- 문제 번호
+    passage         TEXT,               -- 지문 원문
+    input_mode      VARCHAR(50),        -- 모의고사/외부지문/교과서
+    question_text   TEXT,               -- 문제 본문
+    options         TEXT,               -- 선택지 JSON
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+
+-- 테이블 2: 답안지 (answers)
+-- 정답 및 해설 저장 (ExamMaker가 답안지 렌더링 시 사용)
+CREATE TABLE answers (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    question_id     BIGINT REFERENCES questions(id),  -- 문제와 1:1 연결
+    answer          VARCHAR(10),        -- 정답 (예: "3", "①")
+    explanation     TEXT,               -- 해설
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+```
+
+**두 테이블 분리 이유**:
+- ExamMaker가 문제만 출력할 때는 `questions`만 조회
+- ExamMaker가 답안지를 출력할 때는 `answers`를 별도 조회
+- 문제와 정답을 분리 저장하면 학생 배포용(문제만) / 교사용(문제+정답) 분기 처리 용이
 
 ---
 
 ## 8. Convention Prerequisites
 
-### 8.1 Existing Project Conventions
-
-- [ ] `CLAUDE.md` 코딩 컨벤션 섹션 없음 (추가 권장)
-- [ ] ESLint/Prettier 설정 없음 (JSP 프로젝트 특성상 스킵 가능)
-- [ ] Java 코드 스타일: 현재 특별한 컨벤션 문서 없음
-
-### 8.2 Conventions to Define/Verify
+### 8.1 Conventions to Define/Verify
 
 | Category | Current State | To Define | Priority |
 |----------|---------------|-----------|:--------:|
 | **API 응답 태그** | `[[TAG]]` 방식 유지 | 유형별 태그 일관성 규칙 | High |
 | **프롬프트 파일명** | 없음 | `{questionType}.prompt.txt` 형식 | High |
 | **에러 응답 형식** | 없음 | JSON `{error: string, retryCount: int}` | Medium |
-| **환경 변수명** | `gemini.api.key` | `GEMINI_API_KEY` (환경변수), `gemini.api.key=${GEMINI_API_KEY}` | High |
+| **환경 변수명** | `gemini.api.key` | `GEMINI_API_KEY` (환경변수) | High |
+| **API 응답 형식** | 없음 | ExamMaker가 파싱할 JSON 구조 정의 | High |
 
-### 8.3 Environment Variables Needed
+### 8.2 Environment Variables Needed
 
-| Variable | Purpose | Scope | To Be Created |
-|----------|---------|-------|:-------------:|
-| `GEMINI_API_KEY` | Gemini API 인증 | Server | ☑ |
-| `SPRING_DATASOURCE_URL` | DB 연결 (Phase 3) | Server | ☑ |
+| Variable | Purpose | Scope |
+|----------|---------|-------|
+| `GEMINI_API_KEY` | Gemini API 인증 | Server |
+| `SPRING_DATASOURCE_URL` | DB 연결 (Phase 3) | Server |
 
 ---
 
@@ -274,33 +355,36 @@
 | 4 | `GeminiService.java` 리팩토링 - 위 두 클래스 사용 | 중간 |
 | 5 | 수동 테스트 (각 유형 5회 생성, 오류율 측정) | 낮음 |
 
-### Phase 2 - UX 개선 (우선순위: 높음)
+### Phase 2 - 생성 결과 검토 UX + DB 저장 (우선순위: 높음)
 
 | 순서 | 작업 | 예상 복잡도 |
 |------|------|------------|
 | 1 | `questionForm.jsp/.js` 로딩 인디케이터 추가 | 낮음 |
-| 2 | `POST /api/regenerate-question` 엔드포인트 구현 | 중간 |
-| 3 | `result.jsp` 재생성 버튼 + 인라인 편집 UI | 중간 |
-| 4 | `result.js` 재생성/편집 인터랙션 구현 | 중간 |
-| 5 | 에러 페이지/메시지 처리 | 낮음 |
+| 2 | `GeminiController.java` 응답을 `reviewResult.jsp`로 전달 | 낮음 |
+| 3 | `reviewResult.jsp` 문제 리스트 검토 뷰 구현 | 중간 |
+| 4 | `reviewResult.js` 개별 재생성 버튼 + 인라인 편집 | 중간 |
+| 5 | `reviewResult.js` "복사하기" 버튼 → 클립보드 API | 낮음 |
+| 6 | `POST /api/regenerate-question` 엔드포인트 (단일 문제 재생성) | 중간 |
+| 7 | `POST /api/save-questions` 엔드포인트 + "DB에 저장" 버튼 연동 | 중간 |
+| 8 | 에러 페이지/메시지 처리 | 낮음 |
 
-### Phase 3 - 문제 저장 DB (우선순위: 중간)
+### Phase 3 - DB API (ExamMaker 연동용) (우선순위: 중간)
 
 | 순서 | 작업 | 예상 복잡도 |
 |------|------|------------|
 | 1 | `pom.xml` JPA + H2 의존성 추가 | 낮음 |
-| 2 | `QuestionSet`, `Question` JPA 엔티티 설계 | 중간 |
-| 3 | `QuestionSetRepository` + 저장/조회 API | 중간 |
-| 4 | `questionList.jsp` 목록 페이지 | 중간 |
-| 5 | `result.jsp` 저장 버튼 + 불러오기 연동 | 중간 |
+| 2 | `QuestionSet`, `Question` JPA 엔티티 설계 (ExamMaker 호환 스키마) | 중간 |
+| 3 | `GET /api/question-sets` — 문제 세트 목록 | 낮음 |
+| 4 | `GET /api/question-sets/{id}/questions` — 문제 JSON (ExamMaker 연동 핵심) | 중간 |
+| 5 | `questionList.jsp` 저장된 문제 목록 조회 페이지 | 중간 |
 
 ---
 
 ## 10. Next Steps
 
 1. [ ] `docs/02-design/features/prepai-v2.design.md` 작성 (`/pdca design prepai-v2`)
-2. [ ] Phase 1부터 순서대로 구현 시작
-3. [ ] 각 Phase 완료 후 Gap 분석 (`/pdca analyze prepai-v2`)
+2. [ ] Phase 1부터 구현 시작 (AI 품질 먼저)
+3. [ ] Phase 3 완료 후 ExamMaker 프로젝트 별도 생성
 
 ---
 
@@ -309,3 +393,7 @@
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
 | 0.1 | 2026-03-24 | 초기 플랜 작성 | 개발팀 |
+| 0.2 | 2026-03-25 | 중간 검토 뷰 + 액션 버튼 분리 반영 | 개발팀 |
+| 0.3 | 2026-03-25 | **아키텍처 전면 재설계**: PrepAI = 문제 생성 전담, 시험지/PDF = ExamMaker 별도 앱으로 완전 분리 | 개발팀 |
+| 0.4 | 2026-03-25 | DB 저장 대상 확정: questions + answers 2개 테이블로 분리 저장. DB는 미생성 (추후 연동 예정) | 개발팀 |
+| 0.5 | 2026-03-26 | FR-13/FR-14 추가: PDF 추출 품질 이슈 — (A)(B)(C)(D) 단락 구분자 보존 + 문제 번호 패턴(`번호.`) 정확 인식. PromptBuilder.java HINT 수정으로 부분 반영 | 개발팀 |

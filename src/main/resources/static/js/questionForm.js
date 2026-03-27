@@ -32,4 +32,49 @@ window.addEventListener("DOMContentLoaded", (event) => {
   if (checkedTypeRadio) {
     toggleUI(checkedTypeRadio.value);
   }
+
+  // 🔴 폼 제출 시 로딩 오버레이를 표시한다. 🔴
+  const form = document.querySelector('form');
+  if (form) {
+    form.addEventListener('submit', function () {
+      const total = calcTotalQuestions();
+      if (total > 0) showLoadingOverlay(total);
+    });
+  }
 });
+
+// 🔴 선택된 문제 유형의 총 문제 수를 계산한다. 🔴
+function calcTotalQuestions() {
+  return Array.from(document.querySelectorAll('input[name="questionTypes"]:checked'))
+    .reduce((sum, cb) => {
+      const countEl = document.querySelector(`input[name="count_${cb.value}"]`);
+      return sum + (parseInt(countEl?.value) || 1);
+    }, 0);
+}
+
+// 🔴 로딩 오버레이를 표시하고 게이지를 예상 시간 기반으로 채운다. 🔴
+// 🔴 1문제 생성에 약 5초 소요 기준으로 게이지 속도를 계산한다. 🔴
+function showLoadingOverlay(total) {
+  const overlay  = document.getElementById('loading-overlay');
+  const bar      = document.getElementById('loading-bar');
+  const countEl  = document.getElementById('loading-count');
+  const etaEl    = document.getElementById('loading-eta');
+
+  overlay.style.display = 'flex';
+
+  const totalMs  = Math.max(10000, total * 5000); // 최소 10초
+  const tickMs   = 200;
+  const maxPct   = 92; // 92%까지만 채우고 서버 응답 대기
+  let   elapsed  = 0;
+
+  setInterval(() => {
+    elapsed += tickMs;
+    const pct    = Math.min(maxPct, (elapsed / totalMs) * 100);
+    const genNum = Math.min(total, Math.round((pct / 100) * total));
+    const remS   = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
+
+    bar.style.width     = pct.toFixed(1) + '%';
+    countEl.textContent = `${genNum} / ${total}개`;
+    etaEl.textContent   = remS > 0 ? `약 ${remS}초 남았습니다` : '거의 완료됐습니다...';
+  }, tickMs);
+}
