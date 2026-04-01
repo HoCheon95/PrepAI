@@ -223,12 +223,17 @@ public class PdfTestController {
             }
         }
 
+        // 🔴 섹션별 공유 지문을 번호 범위로 저장 — 독립 탐색 폴백에서 재활용한다 🔴
+        Map<String, String> sectionPassageByQNum = new LinkedHashMap<>();
+
         for (int i = 0; i < sections.size(); i++) {
             int firstQ    = sections.get(i)[0];
             int lastQ     = sections.get(i)[1];
             int secStart  = sections.get(i)[2];
             int secEnd    = (i + 1 < sections.size()) ? sections.get(i + 1)[2] : text.length();
-            String secText = text.substring(secStart, secEnd).trim();
+            // 🔴 줄 끝 문자 정규화 — (?m)^ 가 \r\n 환경에서도 올바르게 작동하게 한다 🔴
+            String secText = text.substring(secStart, secEnd).trim()
+                    .replace("\r\n", "\n").replace("\r", "\n");
 
             // 섹션 내 지문 = 첫 번째 문제 번호 등장 이전 텍스트
             Pattern firstQPat = Pattern.compile("(?m)^\\s*" + firstQ + "\\.");
@@ -236,6 +241,11 @@ public class PdfTestController {
             String passage = fqm.find() ? secText.substring(0, fqm.start()).trim() : "";
             // "[N ~ M]" 대괄호 태그만 제거하고 안내 지문은 유지
             passage = passage.replaceAll("^\\s*\\[\\d{1,2}\\s*~\\s*\\d{1,2}\\]\\s*", "").trim();
+
+            // 🔴 섹션 내 모든 문제 번호에 대해 공유 지문을 매핑해 둔다 🔴
+            for (int q = firstQ; q <= lastQ; q++) {
+                sectionPassageByQNum.put(String.valueOf(q), passage);
+            }
 
             // 각 문제별로 지문 + 해당 문제 텍스트 조합
             for (int q = firstQ; q <= lastQ; q++) {
@@ -274,7 +284,10 @@ public class PdfTestController {
                 // 독립 문제 끝에 다음 섹션 헤더가 붙는 경우 제거
                 // 예: Q37 끝에 "[38 ~ 39] 글의 흐름으로...\n적절한 곳을 고르시오." 잔재
                 qText = qText.replaceAll("(?s)\\n\\[\\d{1,2}\\s*~\\s*\\d{1,2}\\][^.]*?\\.", "").trim();
-                map.put(String.valueOf(qNum), applyBlankMarker(qText));
+                // 🔴 섹션에 속한 문제(예: 42~44)는 섹션 공유 지문을 앞에 붙인다 🔴
+                String secPassage = sectionPassageByQNum.getOrDefault(String.valueOf(qNum), "");
+                String fullText = secPassage.isEmpty() ? qText : secPassage + "\n\n" + qText;
+                map.put(String.valueOf(qNum), applyBlankMarker(fullText));
             }
         }
 
@@ -341,4 +354,181 @@ public class PdfTestController {
         }
         return map;
     }
+
+    // 🔴 이미지 한 장으로 5개 유형 문제를 한 번에 생성한다. 🔴
+    @PostMapping(value = "/image-question", produces = "application/json; charset=UTF-8")
+    public Map<String, Object> generateImageQuestion(
+            @RequestParam("image") MultipartFile image) {
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (image == null || image.isEmpty()) {
+            result.put("error", "이미지 파일이 없습니다.");
+            return result;
+        }
+
+        long start = System.currentTimeMillis();
+        System.out.println("[ImageQuestion] 이미지 수신: " + image.getOriginalFilename()
+                + " (" + image.getSize() / 1024 + "KB)");
+
+        String prompt = buildImageQuestionPrompt();
+        String raw = geminiService.getGeminiResponse(prompt, image);
+
+        long elapsed = System.currentTimeMillis() - start;
+        System.out.println("[ImageQuestion] 완료 (" + elapsed + "ms)");
+
+        result.put("elapsedMs", elapsed);
+        result.put("rawResponse", raw);
+        result.put("questions", parseAllImageQuestions(raw));
+        return result;
+    }
+
+    // 🔴 이미지 한 장 → 5개 유형 문제 + 각 문제마다 새로운 차트 데이터 동시 생성 🔴
+    // Q1: 도표 불일치  Q2: 도표 일치  Q3: 빈칸 추론  Q4: 제목 파악  Q5: 요약 완성
+    // CHART_DATA_N: Chart.js가 그릴 새로운 차트 JSON (원본과 유사한 구조, 다른 데이터)
+    private String buildImageQuestionPrompt() {
+        return "STEP 1 — Analyze the original chart image carefully:\n"
+             + "- Identify the chart TYPE (bar / grouped bar / line / pie / etc.)\n"
+             + "- Identify the TOPIC (what is being measured)\n"
+             + "- Identify the CATEGORIES (x-axis labels, legend items)\n"
+             + "- Identify the UNIT (%, points, count, etc.) and VALUE RANGE\n"
+             + "- Identify how many DATASETS exist (single or grouped bars)\n\n"
+
+             + "STEP 2 — Generate 5 questions. For each question, create NEW chart data that:\n"
+             + "  - Uses the SAME chart type and structure as the original\n"
+             + "  - Uses a SIMILAR topic or a closely related real-world topic\n"
+             + "  - Uses REALISTIC values (similar scale/range as original, plausible statistics)\n"
+             + "  - Has DIFFERENT specific numbers from the original image\n\n"
+
+             + "[STRICT OUTPUT RULES]\n"
+             + "1. Output ONLY the tagged blocks below. NO markdown fences (no ```). NO extra commentary.\n"
+             + "2. CHART_DATA_N must be a single-line JSON — absolutely no newlines inside the JSON.\n"
+             + "3. All passage sentences must use exact values from CHART_DATA_N only.\n"
+             + "4. For 도표 불일치/일치: write 5 complete declarative sentences (not bullet points).\n"
+             + "5. Answer choices ①~⑤ must each be a full English sentence about the chart.\n\n"
+
+             + "CHART_DATA JSON FORMAT (single line):\n"
+             + "{\"type\":\"bar\",\"title\":\"...\",\"labels\":[\"A\",\"B\"],\"datasets\":[{\"label\":\"Series1\",\"data\":[30,45]}],\"yAxisLabel\":\"(%)\",\"yMax\":100}\n"
+             + "Supported types: bar | horizontalBar | line | pie | doughnut\n"
+             + "For grouped bars: datasets array with multiple objects, each with label+data.\n\n"
+
+             + "=== QUESTION 1 (도표 불일치) ===\n"
+             + "[[CHART_DATA_1]]\n"
+             + "New chart JSON — same type as original, different topic & realistic values.\n"
+             + "[[INSTRUCTION_1]]\n"
+             + "다음 도표의 내용과 일치하지 않는 것은?\n"
+             + "[[PASSAGE_1]]\n"
+             + "The graph above shows [topic of CHART_DATA_1 with year/source if realistic].\n"
+             + "① [true statement — exact value from chart]\n"
+             + "② [true statement — exact value from chart]\n"
+             + "③ [true statement — exact value from chart]\n"
+             + "④ [FALSE — one number is subtly wrong, e.g. 34% vs actual 43%]\n"
+             + "⑤ [true statement — exact value from chart]\n"
+             + "[[ANSWER_1]]\n"
+             + "4\n"
+             + "[[EXPLANATION_1]]\n"
+             + "④번: 도표에서 실제 값은 [correct value]인데 지문은 [wrong value]로 서술했으므로 불일치.\n\n"
+
+             + "=== QUESTION 2 (도표 일치) ===\n"
+             + "[[CHART_DATA_2]]\n"
+             + "New chart JSON — different topic from Q1, same chart type family.\n"
+             + "[[INSTRUCTION_2]]\n"
+             + "다음 도표의 내용과 일치하는 것은?\n"
+             + "[[PASSAGE_2]]\n"
+             + "The graph above shows [topic of CHART_DATA_2].\n"
+             + "① [FALSE — wrong value or wrong comparison]\n"
+             + "② [FALSE — wrong ranking]\n"
+             + "③ [TRUE — exactly matches chart data]\n"
+             + "④ [FALSE — wrong trend or wrong percentage point difference]\n"
+             + "⑤ [FALSE — wrong number]\n"
+             + "[[ANSWER_2]]\n"
+             + "3\n"
+             + "[[EXPLANATION_2]]\n"
+             + "③번: 도표의 [value]와 정확히 일치. 나머지는 각각 [brief reason each is wrong].\n\n"
+
+             + "=== QUESTION 3 (빈칸 추론) ===\n"
+             + "[[CHART_DATA_3]]\n"
+             + "New line or bar chart JSON showing a clear trend (increase/decrease/comparison).\n"
+             + "[[INSTRUCTION_3]]\n"
+             + "다음 빈칸에 들어갈 말로 가장 적절한 것을 고르시오.\n"
+             + "[[PASSAGE_3]]\n"
+             + "[3 sentences describing the CHART_DATA_3 trend. The KEY descriptive word/phrase is replaced with [ ________ ] in the final sentence.]\n"
+             + "[[CHOICES_3]]\n"
+             + "① [plausible but wrong word]\n"
+             + "② [plausible but wrong word]\n"
+             + "③ [correct word — matches the trend]\n"
+             + "④ [plausible but wrong word]\n"
+             + "⑤ [plausible but wrong word]\n"
+             + "[[ANSWER_3]]\n"
+             + "3\n"
+             + "[[EXPLANATION_3]]\n"
+             + "[Korean: 차트에서 [trend description]이므로 빈칸에는 '③ [word]'가 가장 적절하다.]\n\n"
+
+             + "=== QUESTION 4 (제목 파악) ===\n"
+             + "[[CHART_DATA_4]]\n"
+             + "New chart JSON — can be pie or doughnut to add variety. Realistic composition data.\n"
+             + "[[INSTRUCTION_4]]\n"
+             + "다음 그래프의 제목으로 가장 적절한 것은?\n"
+             + "[[PASSAGE_4]]\n"
+             + "[2~3 sentences summarizing the key insight of CHART_DATA_4.]\n"
+             + "[[CHOICES_4]]\n"
+             + "① [English title — too narrow]\n"
+             + "② [English title — correct and most fitting]\n"
+             + "③ [English title — too broad]\n"
+             + "④ [English title — slightly off topic]\n"
+             + "⑤ [English title — wrong aspect emphasized]\n"
+             + "[[ANSWER_4]]\n"
+             + "2\n"
+             + "[[EXPLANATION_4]]\n"
+             + "[Korean: 그래프의 핵심 내용은 [key message]이므로 ②가 가장 적절한 제목이다.]\n\n"
+
+             + "=== QUESTION 5 (요약 완성) ===\n"
+             + "[[CHART_DATA_5]]\n"
+             + "New grouped bar chart JSON with 2 datasets and 3~4 labels. Realistic survey/statistics data.\n"
+             + "[[INSTRUCTION_5]]\n"
+             + "다음 그래프의 내용을 한 문장으로 요약하고자 한다. 빈칸 (A), (B)에 들어갈 말로 가장 적절한 것은?\n"
+             + "[[PASSAGE_5]]\n"
+             + "[3~4 sentences describing CHART_DATA_5 data in detail.]\n"
+             + "↓\n"
+             + "[Summary sentence with (A) ________ and (B) ________ blanks, referring to key concepts from the chart.]\n"
+             + "[[CHOICES_5]]\n"
+             + "① [A option] — [B option]\n"
+             + "② [A option] — [B option]\n"
+             + "③ [correct A] — [correct B]\n"
+             + "④ [A option] — [B option]\n"
+             + "⑤ [A option] — [B option]\n"
+             + "[[ANSWER_5]]\n"
+             + "3\n"
+             + "[[EXPLANATION_5]]\n"
+             + "[Korean: (A)는 [reason], (B)는 [reason]이므로 ③이 정답이다.]\n";
+    }
+
+    // 🔴 Gemini 응답에서 CHART_DATA + Q1~Q5 필드를 파싱해 리스트로 반환한다. 🔴
+    private List<Map<String, String>> parseAllImageQuestions(String raw) {
+        List<Map<String, String>> questions = new ArrayList<>();
+        if (raw == null || raw.isEmpty()) return questions;
+
+        String[] fields = {"CHART_DATA", "INSTRUCTION", "PASSAGE", "CHOICES", "ANSWER", "EXPLANATION"};
+        for (int n = 1; n <= 5; n++) {
+            Map<String, String> q = new LinkedHashMap<>();
+            for (int i = 0; i < fields.length; i++) {
+                String open = "[[" + fields[i] + "_" + n + "]]";
+                String close = null;
+                if (i + 1 < fields.length) {
+                    close = "[[" + fields[i + 1] + "_" + n + "]]";
+                } else if (n + 1 <= 5) {
+                    close = "[[CHART_DATA_" + (n + 1) + "]]";
+                }
+                int s = raw.indexOf(open);
+                if (s < 0) continue;
+                s += open.length();
+                int e = (close != null) ? raw.indexOf(close, s) : raw.length();
+                if (e < 0) e = raw.length();
+                String value = raw.substring(s, e).trim();
+                if (!value.isEmpty()) q.put(fields[i].toLowerCase().replace("_", ""), value);
+            }
+            if (!q.isEmpty()) questions.add(q);
+        }
+        return questions;
+    }
+
 }

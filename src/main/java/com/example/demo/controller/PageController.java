@@ -20,6 +20,18 @@ public class PageController {
         return "pdfTest";
     }
 
+    // 🔴 JSON 문제 뷰어 & PDF 정확도 테스트 페이지 🔴
+    @GetMapping("/test/json")
+    public String showJsonTest() {
+        return "jsonTest";
+    }
+
+    // 🔴 이미지 기반 문제 생성 테스트 페이지 🔴
+    @GetMapping("/test/image")
+    public String showImageTest() {
+        return "imageTest";
+    }
+
     // 🔴 ResponseValidator에서 던진 예외를 잡아 error.jsp로 전달한다. 🔴
     @ControllerAdvice
     public static class GlobalExceptionHandler {

@@ -190,6 +190,14 @@
         .f-null { color: #94a3b8; font-style: italic; font-size: 12px; }
         .f-type { color: #2563eb; font-weight: 700; }
         .f-val u, .f-passage u { text-decoration: underline; font-style: normal; }
+        .summary-arrow {
+            display: block;
+            text-align: center;
+            font-family: 'Malgun Gothic', 'Arial', sans-serif;
+            font-size: 18px;
+            line-height: 2;
+            color: #333;
+        }
 
         .raw-toggle {
             font-size: 12px;
@@ -501,6 +509,7 @@ function escHtml(str) {
 }
 
 // 🔴 <u> 태그만 허용하고 나머지는 이스케이프 처리한다 (밑줄 표시 보존용) 🔴
+// 🔴 요약 문제의 ↓ 화살표는 폰트 호환성을 위해 전용 span으로 감싼다 🔴
 function escHtmlKeepUnderline(str) {
     return str
         .replace(/&/g,'&amp;')
@@ -508,6 +517,7 @@ function escHtmlKeepUnderline(str) {
         .replace(/<\/u>/g, '\x00/u\x00')
         .replace(/</g,'&lt;')
         .replace(/>/g,'&gt;')
+        .replace(/↓/g, '<span class="summary-arrow">↓</span>')
         .replace(/\x00u\x00/g, '<u>')
         .replace(/\x00\/u\x00/g, '</u>');
 }
@@ -553,6 +563,7 @@ function parseQuestion(num, fullText) {
     for (let i = afterStartIdx; i < lines.length; i++) {
         const t = lines[i].trim();
         if (!t) { afterStartIdx = i + 1; break; }          // 빈 줄 = instruction 끝
+        if (/^[①②③④⑤]/.test(t)) { afterStartIdx = i; break; } // 선택지 줄 시작 → instruction 수집 중단
         const kor = (t.match(/[\uAC00-\uD7A3]/g) || []).length;
         const eng = (t.match(/[a-zA-Z]/g) || []).length;
         if (kor === 0 && eng >= 5) { afterStartIdx = i; break; } // 영어 줄 = passage 시작
@@ -574,12 +585,34 @@ function parseQuestion(num, fullText) {
     else if (instrKw.includes('지도')) image_type = 'MAP';
 
     // ── 7. 선택지 분리 (줄 첫 머리 ①②③④⑤) ──
-    // 도표/그림 문제는 ①②③④⑤가 지문 내부에 있으므로 분리하지 않는다
-    const choiceIdx = image_type ? -1 : remainingText.search(/\n[①②③④⑤]/);
-    let bodyText = remainingText.trim(), choices = null;
-    if (choiceIdx >= 0) {
+    // 도표/그림 문제, 어법/어휘 문제는 ①②③④⑤가 지문 내부에 있으므로 분리하지 않는다
+    const isVocabEmbedded = instrKw.includes('낱말') || instrKw.includes('어법');
+    let choiceIdx;
+    if (image_type || isVocabEmbedded) {
+        choiceIdx = -1;
+    } else if (/^[①②③④⑤]/.test(remainingText.trimStart())) {
+        choiceIdx = 0;  // 선택지가 맨 앞에 오는 경우 (42번 등)
+    } else {
+        choiceIdx = remainingText.search(/\n[①②③④⑤]/);
+    }
+    let bodyText, choices = null;
+    if (choiceIdx > 0) {
         bodyText = remainingText.substring(0, choiceIdx).trim();
         choices  = remainingText.substring(choiceIdx + 1).trim();
+    } else if (choiceIdx === 0) {
+        bodyText = '';
+        choices  = remainingText.trim();
+    } else {
+        bodyText = remainingText.trim();
+    }
+    // 41번처럼 다음 문제의 지문이 선택지에 섞이는 경우를 방지: 마지막 ⑤ 줄 이후 내용 제거
+    if (choices) {
+        const cl = choices.split('\n');
+        let lastCircle = -1;
+        for (let i = 0; i < cl.length; i++) {
+            if (/^[①②③④⑤]/.test(cl[i].trim())) lastCircle = i;
+        }
+        if (lastCircle >= 0) choices = cl.slice(0, lastCircle + 1).join('\n').trim();
     }
 
     // ── 8. passage 결정 ──
@@ -616,6 +649,27 @@ function parseQuestion(num, fullText) {
         }
     }
 
+    // ── 11. 밑줄 친 구절 → passage에 <u> 태그 적용 ──
+    // "밑줄 친 X가 다음 글에서..." 형태의 instruction에서 X를 추출해 passage에 밑줄 표시
+    if (instruction && passage && !passage.includes('<u>')) {
+        const ulMatch = instruction.match(/밑줄\s*친\s+(.+?)(?:\s+(?:가|이|을|는|의)\s|$)/);
+        if (ulMatch && ulMatch[1]) {
+            const phrase = ulMatch[1].trim();
+            if (phrase.length > 2) {
+                // 21번처럼 PDF 줄바꿈으로 구절이 분리될 수 있으므로 공백/줄바꿈을 유연하게 매칭
+                const phraseRegex = new RegExp(phrase.replace(/\s+/g, '[\\s\\n]+'));
+                const m = passage.match(phraseRegex);
+                if (m) {
+                    passage = passage.replace(phraseRegex, '<u>' + m[0] + '</u>');
+                }
+            }
+        }
+    }
+    // 어법 문제: ①②③④⑤ 뒤 첫 단어에 밑줄 표시 (29번)
+    if (type === 'VOCABULARY' && passage && instrKw.includes('어법') && !passage.includes('<u>')) {
+        passage = passage.replace(/([①②③④⑤])\s+([A-Za-z'\-]+)/g, '$1 <u>$2</u>');
+    }
+
     return {
         type, instruction,
         section_inst,
@@ -649,8 +703,13 @@ function buildQuestionCard(num, fullText, labelSuffix) {
     let rows = '';
     rows += fieldRow('question_type',   q.type + ' — ' + (TYPE_LABEL[q.type] || q.type), 'type');
     rows += fieldRow('image_type',      q.image_type ? (IMAGE_LABEL[q.image_type] + ' 필요') : null);
-    rows += fieldRow('section_inst',    q.section_inst);
-    rows += fieldRow('instruction',     q.instruction);
+    // section_inst와 instruction이 모두 있으면 하나의 행으로 합쳐 표시한다
+    if (q.section_inst && q.instruction) {
+        rows += fieldRow('section_inst', q.section_inst + '\n' + q.instruction);
+    } else {
+        rows += fieldRow('section_inst',    q.section_inst);
+        rows += fieldRow('instruction',     q.instruction);
+    }
     rows += fieldRow('given_sentence',  q.given_sentence, 'passage');
     rows += fieldRow('passage',         q.passage, 'passage');
     rows += fieldRow('choices',         q.choices);
