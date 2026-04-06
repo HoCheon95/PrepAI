@@ -5,6 +5,15 @@
 
 
 *** 수정사항
+"word_notes": [
+      {
+        "word": "opine",
+        "meaning": "(의견을) 말하다, 밝히다"
+      }
+    ]
+
+word_notes 는 왜 화면에 출력이 안되고있지?
+이거 passge 우측 하단에 넣어줘
 
 
 *** 참고사항

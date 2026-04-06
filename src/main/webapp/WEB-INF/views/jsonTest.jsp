@@ -31,6 +31,7 @@
       <button onclick="selectRange(31,40)">31~40</button>
       <button onclick="selectRange(41,45)">41~45</button>
       <button class="btn-primary" onclick="renderJsonCards()">선택 문제 보기 →</button>
+      <button class="btn-primary" onclick="renderExamSheet()">시험지로 보기 →</button>
     </div>
     <div class="checkboxes" id="checkboxes">
       <span style="color:#94a3b8;font-size:12px;font-style:italic;">JSON 파일을 먼저 업로드하세요.</span>
@@ -40,6 +41,7 @@
   <div class="tab-bar">
     <button class="tab active" data-tab="json" onclick="switchTab('json')">JSON 뷰 (정답 데이터)</button>
     <button class="tab" data-tab="pdf" onclick="switchTab('pdf')">PDF 정확도 테스트</button>
+    <button class="tab" data-tab="sheet" onclick="switchTab('sheet')">시험지 뷰</button>
   </div>
 
   <div id="jsonTab" class="tab-content">
@@ -54,6 +56,33 @@
       <span id="compareStatus"></span>
     </div>
     <div id="compareResults" class="empty-state">PDF를 업로드하고 비교를 시작하세요.</div>
+  </div>
+
+  <div id="sheetTab" class="tab-content sheet-tab-wrap" style="display:none; padding:0;">
+    <div class="sheet-control-bar">
+      <button id="btn-sheet-std" class="sheet-btn active" onclick="toggleSheetMode('student')">👨‍🎓 학생용</button>
+      <button id="btn-sheet-tch" class="sheet-btn" onclick="toggleSheetMode('teacher')">👨‍🏫 교사용 (정답포함)</button>
+      <div class="sheet-divider"></div>
+      <button id="btn-edit-toggle" class="sheet-btn" onclick="toggleEditMode()">✏️ 편집 모드</button>
+      <span id="edit-hint" class="edit-hint" style="display:none;">시험지를 직접 클릭하여 수정하세요</span>
+      <div class="sheet-divider"></div>
+      <div id="format-toolbar" class="format-toolbar" style="display:none;">
+        <button class="fmt-btn" title="굵게" onclick="fmt('bold')"><b>B</b></button>
+        <button class="fmt-btn" title="기울임" onclick="fmt('italic')"><i>I</i></button>
+        <button class="fmt-btn" title="밑줄" onclick="fmt('underline')"><u>U</u></button>
+        <button class="fmt-btn" title="취소선" onclick="fmt('strikethrough')"><s>S</s></button>
+        <div class="sheet-divider"></div>
+        <button class="fmt-btn" title="실행 취소" onclick="fmt('undo')">↩</button>
+        <button class="fmt-btn" title="다시 실행" onclick="fmt('redo')">↪</button>
+      </div>
+      <div class="sheet-divider"></div>
+      <button class="sheet-btn" onclick="window.print()">🖨️ 인쇄</button>
+    </div>
+    <div class="sheet-paper-bg">
+      <div id="examSheetPages">
+        <div class="sheet-empty-hint">시험지로 보기 버튼을 클릭하면 여기에 시험지가 렌더링됩니다.</div>
+      </div>
+    </div>
   </div>
 </div>
 

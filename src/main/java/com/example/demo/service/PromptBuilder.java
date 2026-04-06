@@ -104,6 +104,15 @@ public class PromptBuilder {
             p.append("HINT: For each Target Question Number, find the line starting with 'N.' and put that Korean question text into [[QUESTION]]. Extract the full English passage into [[PASSAGE]].\n");
             p.append("HINT: If the passage contains labeled sections like (A), (B), (C), (D), you MUST preserve ALL section labels exactly as they appear inside [[PASSAGE]].\n\n");
         }
+        // 🔴 JSON에서 추출한 지문 텍스트로 모의고사 문제를 생성할 때: 레이블된 지문을 문제 번호별로 사용한다. 🔴
+        else if ("모의고사".equals(examType) && hasText && questionNos != null && !questionNos.isEmpty()) {
+            String targetNums = String.join(", ", questionNos);
+            p.append("Target Question Numbers: [").append(targetNums).append("]\n");
+            p.append("TASK: The text below contains English passages labeled by question number (e.g., [Question 18]). ");
+            p.append("For each Target Question Number, use the corresponding labeled passage as the base [[PASSAGE]] to create questions.\n");
+            p.append("HINT: If the passage contains labeled sections like (A), (B), (C), (D), you MUST preserve ALL section labels exactly as they appear inside [[PASSAGE]].\n");
+            p.append("[TEXT]\n").append(passageText).append("\n\n");
+        }
         // 🔴 텍스트만 있을 때: 입력된 텍스트를 지문으로 사용한다. 🔴
         else if (hasText) {
             p.append("TASK: Use the text provided below as the base passage.\n");

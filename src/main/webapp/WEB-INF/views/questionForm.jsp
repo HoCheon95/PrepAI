@@ -44,8 +44,8 @@
                                 <textarea name="passageText" id="passageText" placeholder="이곳에 원문 지문을 붙여넣어 주세요..."></textarea>
                             </div>
                             <div style="margin-top: 15px;">
-                                <p style="font-size:14px; color:#666; margin-bottom:5px;" id="file-help-text">※ 모의고사 원문 PDF 파일을 업로드해주세요.</p>
-                                <input type="file" name="passageImage" accept=".pdf, image/*">
+                                <p style="font-size:14px; color:#666; margin-bottom:5px;" id="file-help-text">※ 문제 데이터가 담긴 JSON 파일을 업로드해주세요. (필수)</p>
+                                <input type="file" id="passageFileInput" name="passageImage" accept=".json">
                             </div>
                         </div>
 

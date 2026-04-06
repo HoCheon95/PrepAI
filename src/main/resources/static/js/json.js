@@ -92,6 +92,7 @@ function selectRange(start, end) {
 function switchTab(tab) {
   document.getElementById("jsonTab").style.display = tab === "json" ? "" : "none";
   document.getElementById("pdfTab").style.display = tab === "pdf" ? "" : "none";
+  document.getElementById("sheetTab").style.display = tab === "sheet" ? "" : "none";
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tab === tab);
   });
@@ -128,6 +129,13 @@ function buildJsonCard(q) {
 
   if (q.passage) {
     rows += '<tr><td class="f-label">passage</td><td class="f-passage">' + q.passage + "</td></tr>";
+  }
+
+  if (q.word_notes && q.word_notes.length > 0) {
+    const notesHtml = q.word_notes
+      .map((n) => '<span class="word-note-item"><b>' + escHtml(n.word) + "</b> " + escHtml(n.meaning) + "</span>")
+      .join("");
+    rows += '<tr><td class="f-label">word_notes</td><td class="f-val"><div class="word-notes-list">' + notesHtml + "</div></td></tr>";
   }
 
   if (q.choices && q.choices.length > 0) {
@@ -427,4 +435,187 @@ function stripHtml(s) {
 function toggleCmp(header) {
   const body = header.nextElementSibling;
   body.classList.toggle("hidden");
+}
+
+// ═══════════════════════════════════════════════════════
+// 시험지 뷰 렌더링 — 실제 DOM 높이 기반 A4 페이지 분할
+// ═══════════════════════════════════════════════════════
+
+function renderExamSheet() {
+  const selected = getSelected();
+  if (selected.length === 0) { alert("문제를 선택하세요."); return; }
+  if (QUESTIONS.length === 0) { alert("JSON 파일을 먼저 업로드하세요."); return; }
+
+  const qs = QUESTIONS.filter((q) => selected.includes(q.question_number));
+  const qHtmlList = qs.map((q) => buildSheetQuestionHtml(q));
+
+  // 🔴 오프스크린 컨테이너 — 실제 CSS가 적용된 상태로 높이 측정, 사용자에게 보이지 않음 🔴
+  const offscreen = document.createElement("div");
+  offscreen.style.cssText = "position:fixed;left:-9999px;top:0;width:210mm;visibility:hidden;";
+  document.body.appendChild(offscreen);
+
+  // 첫 번째 페이지 생성
+  let pageIdx = 0;
+  let { page, leftCol, rightCol } = createSheetPage(pageIdx);
+  offscreen.appendChild(page);
+  let currentCol = leftCol;
+
+  for (const html of qHtmlList) {
+    const el = document.createElement("div");
+    el.innerHTML = html;
+    currentCol.appendChild(el);
+
+    // 🔴 실제 렌더링 후 scrollHeight vs clientHeight 비교로 넘침 감지 🔴
+    if (currentCol.scrollHeight > currentCol.clientHeight) {
+      currentCol.removeChild(el);
+
+      if (currentCol === leftCol) {
+        // 왼쪽 열 꽉 참 → 오른쪽 열 시도
+        currentCol = rightCol;
+        currentCol.appendChild(el);
+
+        if (currentCol.scrollHeight > currentCol.clientHeight) {
+          // 오른쪽 열도 꽉 참 → 새 페이지
+          currentCol.removeChild(el);
+          pageIdx++;
+          const np = createSheetPage(pageIdx);
+          offscreen.appendChild(np.page);
+          leftCol = np.leftCol;
+          rightCol = np.rightCol;
+          currentCol = leftCol;
+          currentCol.appendChild(el);
+        }
+      } else {
+        // 오른쪽 열 꽉 참 → 새 페이지
+        pageIdx++;
+        const np = createSheetPage(pageIdx);
+        offscreen.appendChild(np.page);
+        leftCol = np.leftCol;
+        rightCol = np.rightCol;
+        currentCol = leftCol;
+        currentCol.appendChild(el);
+      }
+    }
+  }
+
+  // 오프스크린 → 실제 컨테이너로 이동
+  const container = document.getElementById("examSheetPages");
+  container.innerHTML = "";
+  while (offscreen.firstChild) {
+    container.appendChild(offscreen.firstChild);
+  }
+  document.body.removeChild(offscreen);
+
+  switchTab("sheet");
+}
+
+// 🔴 A4 페이지 한 장 DOM 구조 생성 🔴
+function createSheetPage(idx) {
+  const page = document.createElement("div");
+  page.className = "sheet-paper";
+
+  const header = document.createElement("div");
+  header.className = "sheet-exam-header";
+  header.innerHTML =
+    "<div>1</div>" +
+    '<div class="sheet-title">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;영 어 영 역</div>' +
+    '<div class="sheet-grade">고 등</div>';
+
+  const cols = document.createElement("div");
+  cols.className = "sheet-cols";
+
+  const leftCol = document.createElement("div");
+  leftCol.className = "sheet-col";
+  const rightCol = document.createElement("div");
+  rightCol.className = "sheet-col";
+  cols.appendChild(leftCol);
+  cols.appendChild(rightCol);
+
+  const pageNum = document.createElement("div");
+  pageNum.className = "sheet-page-num";
+  pageNum.textContent = "- " + (idx + 1) + " -";
+
+  page.appendChild(header);
+  page.appendChild(cols);
+  page.appendChild(pageNum);
+
+  return { page, leftCol, rightCol };
+}
+function buildSheetQuestionHtml(q) {
+  const nums = ["①", "②", "③", "④", "⑤"];
+  const sectionHtml = q.section_inst
+    ? '<div class="sheet-section-inst">' + escHtml(q.section_inst) + "</div>"
+    : "";
+  const titleHtml =
+    '<div class="sheet-q-title">' +
+    q.question_number + ". " + (q.instruction || "") +
+    "</div>";
+  const givenHtml = q.given_sentence
+    ? '<div class="sheet-given">' + q.given_sentence + "</div>"
+    : "";
+  // 🔴 word_notes가 있으면 지문 박스 우측 하단에 단어 주석을 표시한다. 🔴
+  const wordNotesHtml =
+    q.word_notes && q.word_notes.length > 0
+      ? '<div class="sheet-word-notes">' +
+        q.word_notes
+          .map((n) => "<span><b>" + escHtml(n.word) + "</b> " + escHtml(n.meaning) + "</span>")
+          .join("") +
+        "</div>"
+      : "";
+  const passageHtml = q.passage
+    ? '<div class="sheet-q-passage">' + q.passage + wordNotesHtml + "</div>"
+    : "";
+  const choicesHtml =
+    q.choices && q.choices.length > 0
+      ? '<div class="sheet-q-options">' +
+        q.choices.map((c, i) => nums[i] + " " + escHtml(c)).join("<br>") +
+        "</div>"
+      : "";
+  const answerHtml =
+    '<div class="sheet-answer-only">✅ 정답: ' + q.answer + "번</div>";
+  return (
+    '<div class="sheet-q-item">' +
+    sectionHtml + titleHtml + givenHtml + passageHtml + choicesHtml + answerHtml +
+    "</div>"
+  );
+}
+
+function toggleSheetMode(mode) {
+  const answers = document.querySelectorAll(".sheet-answer-only");
+  const btnStd = document.getElementById("btn-sheet-std");
+  const btnTch = document.getElementById("btn-sheet-tch");
+  if (mode === "teacher") {
+    answers.forEach((el) => (el.style.display = "block"));
+    btnTch.classList.add("active");
+    btnStd.classList.remove("active");
+  } else {
+    answers.forEach((el) => (el.style.display = "none"));
+    btnStd.classList.add("active");
+    btnTch.classList.remove("active");
+  }
+}
+
+// ── 편집 모드 토글 ──
+let _editMode = false;
+function toggleEditMode() {
+  _editMode = !_editMode;
+  const papers = document.querySelectorAll(".sheet-paper");
+  const btn = document.getElementById("btn-edit-toggle");
+  const hint = document.getElementById("edit-hint");
+  const toolbar = document.getElementById("format-toolbar");
+
+  papers.forEach((p) => {
+    p.contentEditable = _editMode ? "true" : "false";
+    p.classList.toggle("edit-mode", _editMode);
+  });
+
+  btn.classList.toggle("active", _editMode);
+  hint.style.display = _editMode ? "inline" : "none";
+  toolbar.style.display = _editMode ? "flex" : "none";
+}
+
+// ── 서식 명령 (execCommand는 deprecated이나 contenteditable 편집에서는 표준 대안 없음) ──
+function fmt(cmd) {
+  // @ts-ignore
+  document.execCommand(cmd, false, null); // eslint-disable-line no-undef
 }

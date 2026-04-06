@@ -1,3 +1,6 @@
+/* 🔴 모의고사 JSON 데이터를 메모리에 보관한다. 🔴 */
+let mockExamQuestions = [];
+
 /* 🔴 과목 선택 시 UI를 동적으로 변경하는 함수입니다. 🔴 */
 function toggleUI(type) {
   const numberCard = document.getElementById("mock-number-card");
@@ -5,20 +8,24 @@ function toggleUI(type) {
   const passageLabel = document.getElementById("passage-label");
   const fileHelpText = document.getElementById("file-help-text");
   const textArea = document.getElementById("passageText");
+  const fileInput = document.getElementById("passageFileInput");
 
   if (type === "모의고사") {
-    // 모의고사일 때: 번호판 표시, 텍스트창 숨김
+    // 모의고사일 때: 번호판 표시, 텍스트창 숨김, JSON 파일 수락
     numberCard.style.display = "block";
     textAreaWrapper.style.display = "none";
-    if (textArea) textArea.value = ""; // 텍스트 초기화
-    passageLabel.innerText = "📄 모의고사 PDF 파일 첨부";
-    fileHelpText.innerText = "※ 문제를 추출할 모의고사 원문 PDF 파일을 업로드해주세요. (필수)";
+    if (textArea) textArea.value = "";
+    passageLabel.innerText = "📄 모의고사 JSON 파일 첨부";
+    fileHelpText.innerText = "※ 문제 데이터가 담긴 JSON 파일을 업로드해주세요. (필수)";
+    if (fileInput) fileInput.accept = ".json";
+    mockExamQuestions = [];
   } else {
-    // 외부지문, 교과서일 때: 번호판 숨김, 텍스트창 표시
+    // 외부지문, 교과서일 때: 번호판 숨김, 텍스트창 표시, PDF/이미지 파일 수락
     numberCard.style.display = "none";
     textAreaWrapper.style.display = "block";
     passageLabel.innerText = "📄 지문 텍스트 입력 또는 파일 첨부";
     fileHelpText.innerText = "※ 텍스트를 직접 입력하거나 문서를 업로드할 수 있습니다.";
+    if (fileInput) fileInput.accept = ".pdf, image/*";
 
     // 숨겨진 번호 체크박스들의 체크를 모두 해제
     const checkboxes = document.querySelectorAll('input[name="questionNos"]');
@@ -27,16 +34,69 @@ function toggleUI(type) {
 }
 
 // 🔴 페이지가 처음 열릴 때 현재 체크된 항목 기준으로 초기화합니다. 🔴
-window.addEventListener("DOMContentLoaded", (event) => {
+window.addEventListener("DOMContentLoaded", () => {
   const checkedTypeRadio = document.querySelector('input[name="examType"]:checked');
   if (checkedTypeRadio) {
     toggleUI(checkedTypeRadio.value);
   }
 
-  // 🔴 폼 제출 시 로딩 오버레이를 표시한다. 🔴
+  // 🔴 모의고사 모드에서 JSON 파일 선택 시 파싱 후 메모리에 저장한다. 🔴
+  const fileInput = document.getElementById("passageFileInput");
+  if (fileInput) {
+    fileInput.addEventListener("change", function () {
+      const examType = document.querySelector('input[name="examType"]:checked')?.value;
+      if (examType !== "모의고사") return;
+
+      const file = this.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          mockExamQuestions = JSON.parse(e.target.result);
+          console.log("[PrepAI] 모의고사 JSON 로드 완료:", mockExamQuestions.length + "문제");
+        } catch (err) {
+          console.error("[PrepAI] JSON 파싱 오류:", err);
+          alert("올바른 JSON 형식이 아닙니다.");
+          mockExamQuestions = [];
+        }
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  // 🔴 폼 제출 시 모의고사 JSON 지문 추출 후 passageText에 주입하고 로딩 오버레이를 표시한다. 🔴
   const form = document.querySelector('form');
   if (form) {
-    form.addEventListener('submit', function () {
+    form.addEventListener('submit', function (e) {
+      const examType = document.querySelector('input[name="examType"]:checked')?.value;
+
+      if (examType === "모의고사") {
+        const selectedNos = Array.from(document.querySelectorAll('input[name="questionNos"]:checked'))
+          .map((cb) => parseInt(cb.value));
+
+        if (selectedNos.length > 0 && mockExamQuestions.length > 0) {
+          // 🔴 선택된 문제 번호에 해당하는 지문을 레이블과 함께 추출한다. 🔴
+          const passages = selectedNos
+            .map((num) => {
+              const q = mockExamQuestions.find((q) => q.question_number === num);
+              return q ? "[Question " + num + "]\n" + (q.passage || "") : null;
+            })
+            .filter(Boolean);
+
+          if (passages.length > 0) {
+            document.getElementById("passageText").value = passages.join("\n\n");
+          }
+        } else if (mockExamQuestions.length === 0) {
+          e.preventDefault();
+          alert("JSON 파일을 먼저 업로드해주세요.");
+          return;
+        }
+
+        // 🔴 파일은 서버로 전송하지 않는다 — passageText로 대체된다. 🔴
+        if (fileInput) fileInput.value = "";
+      }
+
       const total = calcTotalQuestions();
       if (total > 0) showLoadingOverlay(total);
     });

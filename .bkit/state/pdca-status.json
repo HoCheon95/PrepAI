@@ -1,6 +1,6 @@
 {
   "version": "3.0",
-  "lastUpdated": "2026-04-01T09:33:37.740Z",
+  "lastUpdated": "2026-04-06T05:27:23.742Z",
   "activeFeatures": [
     "skill",
     "geminiAI",
@@ -60,9 +60,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-24T11:31:25.594Z",
-        "lastUpdated": "2026-03-26T07:04:49.187Z"
+        "lastUpdated": "2026-04-06T00:05:55.103Z"
       },
-      "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/service/PdfPageService.java"
+      "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/service/PromptBuilder.java"
     },
     "entity": {
       "phase": "do",
@@ -99,9 +99,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-25T00:36:17.740Z",
-        "lastUpdated": "2026-03-25T10:13:55.720Z"
+        "lastUpdated": "2026-04-06T05:27:23.741Z"
       },
-      "lastFile": "/home/ho/workspace/PrepAI/src/main/resources/static/js/reviewResult.js"
+      "lastFile": "/home/ho/workspace/PrepAI/src/main/resources/static/js/json.js"
     }
   },
   "pipeline": {
@@ -112,7 +112,7 @@
   "session": {
     "startedAt": "2026-03-24T10:13:42.806Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-04-01T09:33:37.740Z"
+    "lastActivity": "2026-04-06T05:27:23.742Z"
   },
   "history": [
     {
@@ -748,6 +748,72 @@
     {
       "timestamp": "2026-04-01T09:33:37.740Z",
       "feature": "controller",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-06T00:05:32.478Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-06T00:05:55.103Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-06T00:06:03.248Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-06T00:14:25.900Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-06T00:15:06.362Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-06T00:30:18.127Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-06T00:34:57.048Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-06T02:28:54.147Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-06T02:29:44.668Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-06T04:53:07.677Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-06T05:27:23.741Z",
+      "feature": "js",
       "phase": "do",
       "action": "updated"
     }
