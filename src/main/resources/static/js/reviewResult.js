@@ -15,6 +15,18 @@ function extractBetween(block, startTag, endTag) {
     return block.substring(contentStart, end === -1 ? block.length : end).trim();
 }
 
+// 🔴 AI 응답에 섞인 이상 기호(단독 ?, ? —>, 인코딩 오류 등)를 제거한다. 🔴
+function cleanText(str) {
+    if (!str) return '';
+    return str
+        .split('\n')
+        .filter(line => !/^\s*\?\s*$/.test(line))          // 단독 "?" 줄 제거
+        .filter(line => !/^\?\s*[-—>]/.test(line))          // "? --->" 형태 제거
+        .filter(line => !/^\s*\?\s+/.test(line))            // "? " 로 시작하는 줄 제거
+        .join('\n')
+        .trim();
+}
+
 // 🔴 AI 응답 전체를 파싱해 문제 객체 배열로 변환한다. 🔴
 function parseAiResponse(raw) {
     return raw.split('---SEP---')
@@ -28,18 +40,6 @@ function parseAiResponse(raw) {
             answer:      extractBetween(block, '[[ANSWER]]',      '[[EXPLANATION]]').trim(),
             explanation: cleanText(extractBetween(block, '[[EXPLANATION]]', null))
         }));
-}
-
-// 🔴 AI 응답에 섞인 이상 기호(단독 ?, ? —>, 인코딩 오류 등)를 제거한다. 🔴
-function cleanText(str) {
-    if (!str) return '';
-    return str
-        .split('\n')
-        .filter(line => !/^\s*\?\s*$/.test(line))          // 단독 "?" 줄 제거
-        .filter(line => !/^\?\s*[-—>]/.test(line))          // "? --->" 형태 제거
-        .filter(line => !/^\s*\?\s+/.test(line))            // "? " 로 시작하는 줄 제거
-        .join('\n')
-        .trim();
 }
 
 // ── 텍스트 렌더링 ────────────────────────────────────────────────
@@ -217,11 +217,9 @@ function regenerate(index) {
 
 // 🔴 전체 문제를 텍스트로 클립보드에 복사한다. 🔴
 function copyAll() {
-    // 🔴 현재 '해설지' 버튼에 'active' 클래스가 있는지 확인하여 뷰 상태를 파악한다. 🔴
     const isAnswerView = document.getElementById('btn-view-answers').classList.contains('active');
 
     const text = parsedQuestions.map((q, i) => {
-        // 🔴 문제지, 해설지 공통으로 들어갈 기본 항목을 배열로 구성한다. 🔴
         const content = [
             `[문제 ${i + 1}]`,
             q.question,
@@ -231,9 +229,7 @@ function copyAll() {
             q.options
         ];
 
-        // 🔴 뷰 상태에 따라 정답과 해설 추가 여부를 결정한다. 🔴
         if (isAnswerView) {
-            // 🔴 해설지 뷰일 경우 정답과 해설(데이터가 존재할 경우)을 모두 추가한다. 🔴
             content.push(`정답: ${q.answer}`);
             if (q.explanation) {
                 content.push(`해설: ${q.explanation}`);
@@ -242,14 +238,13 @@ function copyAll() {
 
         return content.filter(Boolean).join('\n');
     }).join('\n\n' + '─'.repeat(40) + '\n\n');
-        
+
     navigator.clipboard.writeText(text)
         .then(() => showToast('클립보드에 복사되었습니다.'))
         .catch(() => showToast('복사 실패 — 브라우저 권한을 확인하세요.'));
 }
 
 // 🔴 검토·편집이 끝난 문제 목록을 /api/save-questions로 POST해 DB에 저장한다. 🔴
-// 🔴 불완전한 문제(선택지 또는 정답 누락)는 저장에서 제외하고 사용자에게 알린다. 🔴
 function saveToDb() {
     const complete   = parsedQuestions.filter(isComplete);
     const skipped    = parsedQuestions.length - complete.length;

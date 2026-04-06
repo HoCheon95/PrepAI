@@ -60,9 +60,14 @@ public class PromptBuilder {
         p.append("[STRICT OUTPUT STRUCTURE]\n");
         p.append("For EACH question, you MUST follow this tag system exactly:\n");
         p.append("[[QUESTION]]\n");
-        p.append("(Question number. Question text in Korean)\n");
+        p.append("(Korean instruction ONLY — e.g. '1. 다음 글의 빈칸에 들어갈 말로 가장 적절한 것은?'\n");
+        p.append(" CRITICAL: [[QUESTION]] must contain the Korean question instruction sentence ONLY.\n");
+        p.append(" DO NOT put the English passage here. The passage goes in [[PASSAGE]] below.)\n");
         p.append("[[PASSAGE]]\n");
-        p.append("(English Passage ONLY. NEVER include Korean text inside [[PASSAGE]]. If Summary question, put '↓' and summary at the bottom.)\n");
+        p.append("(The English passage ONLY — appears EXACTLY ONCE here. NEVER repeat it in [[QUESTION]].\n");
+        p.append(" NEVER include Korean text inside [[PASSAGE]].\n");
+        p.append(" For 빈칸추론: insert [ ________ ] at the blank position inside the passage.\n");
+        p.append(" For 요약문: append '↓' and the summary sentence with blanks (A)(B) at the bottom.)\n");
         p.append("[[OPTIONS]]\n");
         p.append("(1) (Option 1)\n");
         p.append("(2) (Option 2)\n");
@@ -70,7 +75,7 @@ public class PromptBuilder {
         p.append("(4) (Option 4)\n");
         p.append("(5) (Option 5)\n");
         p.append("[[ANSWER]]\n");
-        p.append("(Correct option number)\n");
+        p.append("(Correct option number only — e.g. 3)\n");
         p.append("[[EXPLANATION]]\n");
         p.append("(Detailed explanation in Korean)\n");
         p.append("---SEP---\n\n");
