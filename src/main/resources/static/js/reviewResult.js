@@ -27,19 +27,32 @@ function cleanText(str) {
         .trim();
 }
 
-// 🔴 AI 응답 전체를 파싱해 문제 객체 배열로 변환한다. 🔴
+// 🔴 AI 응답(JSON 배열)을 파싱해 문제 객체 배열로 변환한다. 🔴
+// 🔴 Gemini가 ```json 마크다운으로 감쌀 수 있으므로 벗겨내고 파싱한다. 🔴
 function parseAiResponse(raw) {
-    return raw.split('---SEP---')
-        .map(b => b.trim())
-        .filter(Boolean)
-        .map((block, idx) => ({
-            index:       idx,
-            question:    cleanText(extractBetween(block, '[[QUESTION]]',    '[[PASSAGE]]')),
-            passage:     cleanText(extractBetween(block, '[[PASSAGE]]',     '[[OPTIONS]]')),
-            options:     extractBetween(block, '[[OPTIONS]]',     '[[ANSWER]]'),
-            answer:      extractBetween(block, '[[ANSWER]]',      '[[EXPLANATION]]').trim(),
-            explanation: cleanText(extractBetween(block, '[[EXPLANATION]]', null))
+    try {
+        let clean = raw.trim();
+        if (clean.startsWith('```json')) clean = clean.slice(7);
+        else if (clean.startsWith('```')) clean = clean.slice(3);
+        if (clean.endsWith('```')) clean = clean.slice(0, -3);
+        clean = clean.trim();
+
+        const arr = JSON.parse(clean);
+        return arr.map((item, idx) => ({
+            index:        idx,
+            questionType: item.questionType || '',
+            question:     cleanText(item.questionText || ''),
+            passage:      cleanText(item.passage     || ''),
+            options:      Array.isArray(item.options)
+                              ? item.options.join('\n')
+                              : String(item.options || ''),
+            answer:       String(item.answer ?? ''),
+            explanation:  cleanText(item.explanation || '')
         }));
+    } catch (e) {
+        console.error('[PrepAI] JSON 파싱 실패:', e);
+        return [];
+    }
 }
 
 // ── 텍스트 렌더링 ────────────────────────────────────────────────
@@ -186,9 +199,8 @@ function regenerate(index) {
     const card = document.getElementById(`card-${index}`);
     card.innerHTML = `<div class="card-loading">재생성 중...</div>`;
 
-    const firstLine = q.question.split('\n')[0] || '';
     const params = new URLSearchParams({
-        questionType: firstLine,
+        questionType: q.questionType || deriveQuestionType(q.question),
         passageText:  q.passage || q.question
     });
 
@@ -211,6 +223,106 @@ function regenerate(index) {
             card.outerHTML = buildExamQuestion(q);
             showToast('재생성 중 오류가 발생했습니다.');
         });
+}
+
+// ── JSON 다운로드 ─────────────────────────────────────────────────
+
+// 🔴 문제 지시문에서 유형명을 추론한다. 🔴
+function deriveQuestionType(instruction) {
+    const t = instruction;
+    if (t.includes('빈칸')) return 'READING — 빈칸 추론';
+    if (t.includes('요약')) return 'READING — 요약문 완성';
+    if (t.includes('요지')) return 'READING — 요지 파악';
+    if (t.includes('주제')) return 'READING — 주제 파악';
+    if (t.includes('제목')) return 'READING — 제목 추론';
+    if (t.includes('순서')) return 'READING — 순서 배열';
+    if (t.includes('어법')) return 'READING — 어법 문제';
+    if (t.includes('낱말') || t.includes('어휘')) return 'READING — 어휘 문제';
+    if (t.includes('들어가기') || t.includes('삽입')) return 'READING — 문장 삽입';
+    if (t.includes('관계 없는') || t.includes('무관한')) return 'READING — 무관한 문장';
+    if (t.includes('가리키는') || t.includes('대명사')) return 'READING — 대명사 지칭';
+    if (t.includes('일치하지 않는') || t.includes('불일치')) return 'READING — 내용 불일치';
+    if (t.includes('추론') || t.includes('미루어')) return 'READING — 내용 추론';
+    return 'READING — 독해';
+}
+
+// 🔴 선택지 텍스트를 "(1) 텍스트" 형태에서 문자열 배열로 파싱한다. 🔴
+function parseChoices(optionsText) {
+    if (!optionsText) return [];
+    const choices = [];
+    for (const line of optionsText.split('\n')) {
+        if (choices.length >= 5) break;
+        const match = line.match(/^\s*[\(（]?[1-5①②③④⑤][\)） ]\s*(.+)/);
+        if (match) choices.push(match[1].trim());
+    }
+    return choices;
+}
+
+// 🔴 문장삽입 유형에서 주어진 영어 문장을 추출한다. 🔴
+function extractGivenSentence(question) {
+    if (!question.includes('들어가기') && !question.includes('삽입')) return null;
+    for (const line of question.split('\n')) {
+        if (/^[A-Z]/.test(line.trim())) return line.trim();
+    }
+    return null;
+}
+
+// 🔴 질문 텍스트에서 영어 문장을 제외한 한국어 지시문만 추출한다. 🔴
+function extractInstruction(question) {
+    const korLines = question.split('\n').filter(l => l.trim() && !/^[A-Z]/.test(l.trim()));
+    return korLines.join(' ').trim() || question;
+}
+
+// 🔴 완성된 문제들을 지정 JSON 형식으로 변환해 반환한다. 🔴
+function buildJsonData() {
+    return parsedQuestions.filter(isComplete).map((q, i) => ({
+        question_number: i + 1,
+        question_type:   deriveQuestionType(q.question),
+        image_type:      null,
+        section_inst:    null,
+        instruction:     extractInstruction(q.question),
+        given_sentence:  extractGivenSentence(q.question),
+        passage:         q.passage || null,
+        word_notes:      [],
+        choices:         parseChoices(q.options),
+        answer:          parseInt(q.answer) || null,
+        explanation:     q.explanation || null
+    }));
+}
+
+// 🔴 JSON 미리보기 모달을 열고 내용을 출력한다. 🔴
+function previewJson() {
+    const data = buildJsonData();
+    if (data.length === 0) { showToast('미리볼 완성된 문제가 없습니다.'); return; }
+    document.getElementById('json-preview').textContent = JSON.stringify(data, null, 2);
+    document.getElementById('json-modal').classList.add('show');
+}
+
+// 🔴 모달을 닫는다. 오버레이 클릭 시에는 모달 박스 외부 클릭만 닫힌다. 🔴
+function closeJsonModal(event) {
+    if (event && event.target !== document.getElementById('json-modal')) return;
+    document.getElementById('json-modal').classList.remove('show');
+}
+
+// 🔴 미리보기 중인 JSON을 클립보드에 복사한다. 🔴
+function copyJson() {
+    const text = document.getElementById('json-preview').textContent;
+    navigator.clipboard.writeText(text)
+        .then(() => showToast('JSON이 클립보드에 복사되었습니다.'))
+        .catch(() => showToast('복사 실패 — 브라우저 권한을 확인하세요.'));
+}
+
+// 🔴 JSON 파일로 다운로드한다. 🔴
+function downloadJson() {
+    const data = buildJsonData();
+    if (data.length === 0) { showToast('다운로드할 완성된 문제가 없습니다.'); return; }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'PrepAI_questions.json';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+    showToast(`JSON 다운로드 완료 — ${data.length}개 문제`);
 }
 
 // ── 복사 / 저장 ──────────────────────────────────────────────────

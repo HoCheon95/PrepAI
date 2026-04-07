@@ -1,6 +1,6 @@
 {
   "version": "3.0",
-  "lastUpdated": "2026-04-06T10:00:17.675Z",
+  "lastUpdated": "2026-04-07T08:31:16.347Z",
   "activeFeatures": [
     "skill",
     "geminiAI",
@@ -34,7 +34,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-24T11:11:55.109Z",
-        "lastUpdated": "2026-03-26T01:19:23.784Z"
+        "lastUpdated": "2026-04-07T01:39:07.825Z"
       },
       "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/geminiAI/GeminiService.java"
     },
@@ -47,9 +47,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-24T11:15:02.224Z",
-        "lastUpdated": "2026-04-01T09:33:37.740Z"
+        "lastUpdated": "2026-04-07T05:27:57.571Z"
       },
-      "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/controller/PdfTestController.java"
+      "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/controller/GeminiController.java"
     },
     "service": {
       "phase": "do",
@@ -60,7 +60,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-24T11:31:25.594Z",
-        "lastUpdated": "2026-04-06T10:00:17.675Z"
+        "lastUpdated": "2026-04-07T08:31:16.347Z"
       },
       "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/service/PromptBuilder.java"
     },
@@ -99,7 +99,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-25T00:36:17.740Z",
-        "lastUpdated": "2026-04-06T09:51:00.542Z"
+        "lastUpdated": "2026-04-07T05:28:28.632Z"
       },
       "lastFile": "/home/ho/workspace/PrepAI/src/main/resources/static/js/reviewResult.js"
     }
@@ -112,7 +112,7 @@
   "session": {
     "startedAt": "2026-03-24T10:13:42.806Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-04-06T10:00:17.675Z"
+    "lastActivity": "2026-04-07T08:31:16.347Z"
   },
   "history": [
     {
@@ -831,6 +831,330 @@
     },
     {
       "timestamp": "2026-04-06T10:00:17.675Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T00:27:32.257Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T00:27:41.235Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T00:29:49.861Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:06:14.892Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:06:24.730Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:06:56.390Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:07:07.891Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:24:33.206Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:24:45.035Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:24:58.411Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:26:01.166Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:39:07.825Z",
+      "feature": "geminiAI",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:39:43.742Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:40:07.700Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:40:18.752Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:51:48.752Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:52:07.625Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:52:18.383Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:52:28.699Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T01:52:34.934Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T02:09:26.298Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T02:09:39.737Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T02:09:59.382Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T02:10:24.869Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T02:10:35.580Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T03:04:17.189Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T03:06:47.737Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T04:58:18.153Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T05:23:40.982Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T05:27:27.614Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T05:27:38.686Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T05:27:47.450Z",
+      "feature": "controller",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T05:27:57.571Z",
+      "feature": "controller",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T05:28:03.067Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T05:28:24.290Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T05:28:28.632Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T05:31:39.680Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T06:05:56.416Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T06:06:02.926Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T06:06:16.771Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T06:06:29.235Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T06:06:35.443Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T06:06:42.200Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T06:55:15.539Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T06:55:25.191Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T06:55:36.109Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T06:55:44.097Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T07:11:00.004Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T07:11:06.772Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T08:29:29.270Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T08:29:40.897Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T08:30:24.828Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T08:31:03.695Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-07T08:31:16.347Z",
       "feature": "service",
       "phase": "do",
       "action": "updated"

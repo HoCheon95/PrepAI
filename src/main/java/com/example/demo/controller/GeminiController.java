@@ -60,11 +60,11 @@ public class GeminiController {
         String aiResponse      = responseValidator.validateWithRetry(
                 initialResponse, prompt, passageImage, geminiService, expectedCount);
 
-        // 🔴 실제 생성된 완전한 문제 블록 수를 세어 터미널에 출력한다. 🔴
-        long actualCount = java.util.Arrays.stream(aiResponse.split("---SEP---"))
-                .map(String::trim)
-                .filter(b -> !b.isEmpty() && b.contains("[[QUESTION]]") && b.contains("[[ANSWER]]"))
-                .count();
+        // 🔴 실제 생성된 완전한 JSON 객체 수를 세어 터미널에 출력한다. 🔴
+        long actualCount = 0;
+        try {
+            actualCount = responseValidator.parseJsonArray(aiResponse).size();
+        } catch (Exception ignored) {}
         if (actualCount < expectedCount) {
             System.out.println("[PrepAI] ⚠️ 문제 생성 완료 — 요청 " + expectedCount + "개 / 생성 " + actualCount + "개 / 미생성 " + (expectedCount - actualCount) + "개");
         } else {
@@ -76,6 +76,20 @@ public class GeminiController {
         mav.addObject("examResult", aiResponse);
         mav.addObject("examType", examType);
         return mav;
+    }
+
+    // 🔴 검토 화면에서 개별 문제 "재생성" 버튼을 누르면 호출된다. 🔴
+    // 🔴 단일 문제용 프롬프트를 조립해 JSON 배열(1개짜리)로 반환한다. 🔴
+    @PostMapping(value = "/api/regenerate-question", produces = "text/plain; charset=UTF-8")
+    @ResponseBody
+    public String regenerateQuestion(
+            @RequestParam String questionType,
+            @RequestParam String passageText,
+            @RequestParam(required = false) String difficultyLevel) {
+
+        String prompt          = promptBuilder.buildSingle(questionType, passageText, difficultyLevel);
+        String initialResponse = geminiService.getGeminiResponse(prompt);
+        return responseValidator.validateWithRetry(initialResponse, prompt, null, geminiService, 1);
     }
 
     // 🔴 프론트엔드 검토 화면에서 "DB에 저장" 버튼을 누르면 호출된다. 🔴

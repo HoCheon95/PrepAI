@@ -106,10 +106,21 @@ public class GeminiService {
                     userContent,
                     config); 
 
-            return response.text();
+            return postProcess(response.text());
 
         } catch (Exception e) {
             return "최신 SDK 호출 중 오류 발생: " + e.getMessage();
         }
+    }
+
+    // 🔴 Gemini 응답의 공통 인코딩 오류를 후처리로 자동 수정한다. 🔴
+    // 🔴 어포스트로피(')가 ?로 깨지는 현상: don?t → don't, individuals? behavior → individuals' behavior 🔴
+    private String postProcess(String text) {
+        if (text == null) return null;
+        return text
+            // 축약형: don?t, it?s, won?t 등 — 글자 사이에 낀 ?를 '로 변환
+            .replaceAll("([a-zA-Z])\\?([a-zA-Z])", "$1'$2")
+            // 소유격: individuals? behavior 등 — 글자 뒤 ? + 공백 + 소문자
+            .replaceAll("([a-zA-Z])\\?(\\s+[a-z])", "$1'$2");
     }
 }

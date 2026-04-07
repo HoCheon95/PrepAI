@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 
-// 🔴 문제 유형별 프롬프트 조립 책임을 GeminiController에서 분리한다. 🔴
+// 🔴 JSON 스키마 + Few-Shot 프롬프트로 Gemini 출력 안정성을 극대화한다. 🔴
 @Component
 public class PromptBuilder {
 
@@ -22,119 +22,181 @@ public class PromptBuilder {
             Map<String, String> counts) {
 
         StringBuilder prompt = new StringBuilder();
-        appendOutputFormat(prompt);
+        appendAbsoluteRule(prompt);
+        appendJsonSchema(prompt, questionTypes);
         appendExamConditions(prompt, difficultyLevel, modifications);
         appendPassageSource(prompt, examType, passageText, questionNos, hasFile, hasText);
         appendQuestionTypes(prompt, questionTypes, counts);
         return prompt.toString();
     }
 
-    // 🔴 단일 문제 재생성용 프롬프트를 조립한다. (Phase 2에서 사용) 🔴
+    // 🔴 단일 문제 재생성용 프롬프트를 조립한다. 🔴
     public String buildSingle(String questionType, String passageText, String difficultyLevel) {
         StringBuilder prompt = new StringBuilder();
-        appendOutputFormat(prompt);
+        appendAbsoluteRule(prompt);
+        appendJsonSchema(prompt, List.of(questionType));
         if (difficultyLevel != null) {
             prompt.append("[EXAM CONDITIONS]\n");
-            prompt.append("- Difficulty Level: ").append(difficultyLevel).append("\n\n");
+            appendDifficultyDefinition(prompt, difficultyLevel);
+            prompt.append("\n");
         }
-        prompt.append("[PASSAGE SOURCE & EXTRACTION]\n");
-        prompt.append("TASK: Use the text provided below as the base passage.\n");
+        prompt.append("[PASSAGE SOURCE]\n");
+        prompt.append("TASK: Use the passage below to create ONE brand new question.\n");
         prompt.append("[TEXT]\n").append(passageText).append("\n\n");
-        prompt.append("[QUESTION TYPES TO GENERATE]\n");
-        prompt.append("CRITICAL: DO NOT reuse the original question from the text. Create completely NEW question.\n");
-        prompt.append("- Make 3 options clearly incorrect, and 2 options (including the answer) highly confusing.\n\n");
-        prompt.append("- ").append(questionType).append(": 1개\n");
+        prompt.append("[QUESTION TYPE]\n- ").append(questionType).append(": 1개\n");
         appendTypeRule(prompt, questionType);
         return prompt.toString();
     }
 
-    // 🔴 모든 문제에 공통으로 적용되는 출력 형식 규칙을 추가한다. 🔴
-    // 🔴 태그는 반드시 단독 줄에 위치해야 Gemini가 형식을 올바르게 따른다. 🔴
-    private void appendOutputFormat(StringBuilder p) {
-        p.append("[STRICT FORMATTING RULES]\n");
-        p.append("1. Do NOT use markdown like **bold** or *italic*.\n");
-        p.append("2. If you need to underline a word, MUST use HTML tags: <u>underlined word</u>\n");
-        p.append("3. For 'Fill in the blank' questions, MUST use [ ________ ] to represent the blank.\n");
-        p.append("4. CRITICAL: Output raw text only. No markdown code blocks.\n\n");
+    // ── 공통 규칙 ──────────────────────────────────────────────────────
 
-        p.append("[STRICT OUTPUT STRUCTURE]\n");
-        p.append("For EACH question, you MUST follow this tag system exactly:\n");
-        p.append("[[QUESTION]]\n");
-        p.append("(Korean instruction ONLY — e.g. '1. 다음 글의 빈칸에 들어갈 말로 가장 적절한 것은?'\n");
-        p.append(" CRITICAL: [[QUESTION]] must contain the Korean question instruction sentence ONLY.\n");
-        p.append(" DO NOT put the English passage here. The passage goes in [[PASSAGE]] below.)\n");
-        p.append("[[PASSAGE]]\n");
-        p.append("(The English passage ONLY — appears EXACTLY ONCE here. NEVER repeat it in [[QUESTION]].\n");
-        p.append(" NEVER include Korean text inside [[PASSAGE]].\n");
-        p.append(" For 빈칸추론: insert [ ________ ] at the blank position inside the passage.\n");
-        p.append(" For 요약문: append '↓' and the summary sentence with blanks (A)(B) at the bottom.)\n");
-        p.append("[[OPTIONS]]\n");
-        p.append("(1) (Option 1)\n");
-        p.append("(2) (Option 2)\n");
-        p.append("(3) (Option 3)\n");
-        p.append("(4) (Option 4)\n");
-        p.append("(5) (Option 5)\n");
-        p.append("[[ANSWER]]\n");
-        p.append("(Correct option number only — e.g. 3)\n");
-        p.append("[[EXPLANATION]]\n");
-        p.append("(Detailed explanation in Korean)\n");
-        p.append("---SEP---\n\n");
+    // 🔴 원본 문제 재사용 금지 — 모든 프롬프트 최상단에 삽입한다. 🔴
+    private void appendAbsoluteRule(StringBuilder p) {
+        p.append("[ABSOLUTE RULE — READ FIRST]\n");
+        p.append("The input may contain an ORIGINAL exam question (Korean stem, underlined phrases, answer choices, etc.).\n");
+        p.append("You MUST completely IGNORE the original question. ONLY extract the English passage text.\n");
+        p.append("Create BRAND NEW questions from the passage. NEVER copy or reuse any expression from the original.\n");
+        p.append("Use only standard ASCII apostrophe (') for possessives — NEVER curly quotes.\n\n");
     }
 
-    // 🔴 난이도와 지문 변형 여부를 조건으로 추가한다. 🔴
+    // 🔴 JSON 출력 스키마 + Few-Shot 예시를 삽입한다. 🔴
+    // 🔴 Few-Shot은 백 마디 지시보다 효과적이며 요약문/어법 누락 현상을 원천 차단한다. 🔴
+    private void appendJsonSchema(StringBuilder p, List<String> questionTypes) {
+        p.append("[STRICT OUTPUT CONTROL]\n");
+        p.append("CRITICAL: Output ONLY the requested tags and content. DO NOT print your internal thought process, apologies, or comments like '[REWRITE]'.\n\n");
+        p.append("[OUTPUT FORMAT — STRICT JSON ARRAY]\n");
+        p.append("Return ONLY a valid JSON array. No markdown, no explanation, no text before or after.\n");
+        p.append("Each question is a JSON object with these EXACT fields:\n\n");
+        p.append("{\n");
+        p.append("  \"questionType\": \"<한국어 유형명 e.g. 빈칸추론>\",\n");
+        p.append("  \"questionText\": \"<반드시 한국어 지시문(발문)만 — 아래 규칙 엄수>\",\n");
+        p.append("  \"passage\": \"<영어 지문 — 유형별 규칙에 맞게 포맷팅>\",\n");
+        p.append("  \"options\": [\"(1) ...\", \"(2) ...\", \"(3) ...\", \"(4) ...\", \"(5) ...\"],\n");
+        p.append("  \"answer\": <정답 번호 정수 1~5>,\n");
+        p.append("  \"explanation\": \"<한국어 상세 해설>\"\n");
+        p.append("}\n\n");
+        p.append("⛔ questionText CRITICAL RULES:\n");
+        p.append("  - questionText = ONLY the Korean instruction (발문). e.g. '1. 다음 글의 빈칸에 들어갈 말로 가장 적절한 것은?'\n");
+        p.append("  - NEVER put English passage sentences inside questionText. English content belongs ONLY in passage.\n");
+        p.append("  - If you catch yourself writing an English sentence in questionText — STOP and move it to passage.\n\n");
+
+        p.append("[FEW-SHOT EXAMPLES — YOUR OUTPUT MUST MATCH THIS STRUCTURE EXACTLY]\n");
+        // Few-Shot 1: 빈칸추론
+        p.append("Example 1 (빈칸추론):\n");
+        p.append("{\n");
+        p.append("  \"questionType\": \"빈칸추론\",\n");
+        p.append("  \"questionText\": \"1. 다음 글의 빈칸에 들어갈 말로 가장 적절한 것은?\",\n");
+        p.append("  \"passage\": \"Commitment is the glue holding together human social life. Commitments make individuals' behavior predictable, thereby [ ________ ] the planning of joint actions. Without commitments, institutions like money could not function.\",\n");
+        p.append("  \"options\": [\"(1) hindering\", \"(2) enabling\", \"(3) complicating\", \"(4) preventing\", \"(5) ignoring\"],\n");
+        p.append("  \"answer\": 2,\n");
+        p.append("  \"explanation\": \"약속이 행동을 예측 가능하게 만들어 공동 행동 계획을 가능하게(enabling) 한다는 흐름이 자연스럽다. 나머지는 문맥상 반대 의미다.\"\n");
+        p.append("}\n\n");
+
+        // Few-Shot 2: 요약문 (요약문은 passage 필드 안에 ↓ + 빈칸 문장이 포함되어야 한다)
+        if (questionTypes != null && questionTypes.stream().anyMatch(t -> t.contains("요약"))) {
+            p.append("Example 2 (요약문 — passage 필드 끝에 ↓와 빈칸 문장 MANDATORY):\n");
+            p.append("{\n");
+            p.append("  \"questionType\": \"요약문\",\n");
+            p.append("  \"questionText\": \"2. 다음 글의 내용을 한 문장으로 요약하고자 한다. 빈칸 (A), (B)에 들어갈 말로 가장 적절한 것은?\",\n");
+            p.append("  \"passage\": \"Commitment is the glue holding together human social life. Commitments make individuals' behavior predictable, thereby facilitating the planning of joint actions. Social institutions depend on the credibility of commitments.\\n\\n↓\\nCommitment acts as the (A) [ ________ ] of society by ensuring (B) [ ________ ] behavior among individuals.\",\n");
+            p.append("  \"options\": [\"(1) foundation - predictable\", \"(2) barrier - unpredictable\", \"(3) result - random\", \"(4) challenge - stable\", \"(5) symbol - creative\"],\n");
+            p.append("  \"answer\": 1,\n");
+            p.append("  \"explanation\": \"(A): 약속은 사회의 기반(foundation)이며, (B): 예측 가능한(predictable) 행동을 보장한다는 내용이 글과 일치한다.\"\n");
+            p.append("}\n\n");
+            p.append("⛔ 요약문 CRITICAL: passage 필드는 반드시 '\\n\\n↓\\n(A) [ ________ ] ... (B) [ ________ ]' 로 끝나야 한다.\n");
+            p.append("  '↓' 기호는 절대 생략 불가. 반드시 단독 줄에 ↓ 하나만 출력하라. 없으면 응답이 거부된다.\n\n");
+        }
+
+        // Few-Shot 3: 어법문제
+        if (questionTypes != null && questionTypes.stream().anyMatch(t -> t.contains("어법"))) {
+            p.append("Example 3 (어법문제 — passage에 <u>(1)word</u> 형태 5개 MANDATORY):\n");
+            p.append("{\n");
+            p.append("  \"questionType\": \"어법문제\",\n");
+            p.append("  \"questionText\": \"3. 다음 글의 밑줄 친 부분 중, 어법상 틀린 것은?\",\n");
+            p.append("  \"passage\": \"Commitment is the glue <u>(1)holding</u> together human social life. Commitments make individuals' behavior <u>(2)predictably</u> in the face of fluctuations. Moreover, commitments make people <u>(3)willing</u> to perform actions. A taxi driver <u>(4)picks</u> up clients because they are committed to paying. Social institutions <u>(5)depend</u> on the credibility of commitments.\",\n");
+            p.append("  \"options\": [\"(1) holding\", \"(2) predictably\", \"(3) willing\", \"(4) picks\", \"(5) depend\"],\n");
+            p.append("  \"answer\": 2,\n");
+            p.append("  \"explanation\": \"(2) predictably는 부사로 형용사 자리에 쓰였으므로 predictable이 되어야 한다.\"\n");
+            p.append("}\n\n");
+        }
+
+        p.append("[PASSAGE FORMATTING RULES BY TYPE]\n");
+        p.append("- 빈칸추론: insert [ ________ ] where the blank goes.\n");
+        p.append("- 요약문: passage must end with \\n\\n↓\\n<summary with (A) [ ________ ] and (B) [ ________ ]>. '↓' is MANDATORY — never omit it.\n");
+        p.append("- 어법문제: 5 underlined items as <u>(1)word</u> ... <u>(5)word</u>. ALL 5 required.\n");
+        p.append("- 어휘문제: 5 underlined words as <u>(1)word</u> ... <u>(5)word</u>. ALL 5 required.\n");
+        p.append("- 문장삽입: given sentence in questionText; numbered spots ( 1 ) through ( 5 ) in passage.\n");
+        p.append("- 순서배열: starting sentence in questionText; ONLY (A)(B)(C) blocks in passage — no full passage repeat.\n");
+        p.append("- 대명사지칭: 5 pronouns labeled <u>(a)pronoun</u>; exactly 4 refer to same person, 1 to different entity.\n\n");
+        p.append("⛔ options CRITICAL RULE: options array MUST NEVER be empty or contain blank entries.\n");
+        p.append("  Even for 문장삽입/무관한문장: options = [\"(1) 1\", \"(2) 2\", \"(3) 3\", \"(4) 4\", \"(5) 5\"].\n");
+        p.append("  Input JSON may show choices as null — IGNORE that and always generate concrete option values.\n\n");
+        p.append("CRITICAL: NEVER summarize, truncate, or shorten the passage. You MUST print the FULL, intact passage for EVERY question type. Even for Grammar, Vocabulary, or Pronoun questions, the entire original text must be present.\n\n");
+    }
+
+    // 🔴 난이도와 지문 변형 여부를 프롬프트에 추가한다. 🔴
     private void appendExamConditions(StringBuilder p, String difficultyLevel, List<String> modifications) {
         p.append("[EXAM CONDITIONS]\n");
         if (difficultyLevel != null) {
-            p.append("- Difficulty Level: ").append(difficultyLevel).append("\n");
+            appendDifficultyDefinition(p, difficultyLevel);
         }
         if (modifications != null && modifications.contains("지문변형")) {
-            p.append("- Passage Modification: Modify the original passage but keep the core meaning.\n");
+            p.append("- Passage: Modify the original passage while keeping the core meaning.\n");
         } else {
-            p.append("- Passage Modification: Use the original passage EXACTLY as it is.\n");
+            p.append("- Passage: Use the original passage EXACTLY as-is.\n");
         }
         p.append("\n");
+    }
+
+    // 🔴 난이도별 구체적 행동 규칙을 정의한다. 🔴
+    // 🔴 단순 'High'가 아닌 수능형 고난도 기준(논리 역전, 키워드 함정)을 명시한다. 🔴
+    private void appendDifficultyDefinition(StringBuilder p, String level) {
+        if ("하".equals(level)) {
+            p.append("- Difficulty (하): Straightforward questions. The correct answer can be found by simple reading.\n");
+            p.append("  Distractors: clearly different in meaning from the passage.\n");
+        } else if ("중".equals(level)) {
+            p.append("- Difficulty (중): 수능/내신 standard level.\n");
+            p.append("  Distractors: use related words from the passage but in wrong context.\n");
+            p.append("  Correct answer: lightly paraphrased from the key sentence.\n");
+        } else if ("상".equals(level)) {
+            p.append("- Difficulty (상): High difficulty — 수능 고난도 style.\n");
+            p.append("  DO NOT make it hard by using obscure vocabulary. That is wrong.\n");
+            p.append("  INSTEAD, apply these traps:\n");
+            p.append("  1. Distractors MUST contain exact keywords from the passage but with reversed logic (cause↔effect, part↔whole).\n");
+            p.append("  2. The correct answer MUST be heavily paraphrased — never word-matched from the passage.\n");
+            p.append("  3. Two distractors must be 'half-true' (correct on one aspect, wrong on another).\n");
+        }
     }
 
     // 🔴 시험 유형에 따라 지문 소스 지시를 분기 처리한다. 🔴
     private void appendPassageSource(StringBuilder p, String examType, String passageText,
                                      List<String> questionNos, boolean hasFile, boolean hasText) {
-        p.append("[PASSAGE SOURCE & EXTRACTION]\n");
+        p.append("[PASSAGE SOURCE]\n");
 
-        // 🔴 파일이 존재하고 모의고사 모드일 때: PDF에서 특정 문제 번호의 지문을 추출하도록 지시한다. 🔴
         if (hasFile && "모의고사".equals(examType) && questionNos != null && !questionNos.isEmpty()) {
             String targetNums = String.join(", ", questionNos);
             p.append("Target Question Numbers: [").append(targetNums).append("]\n");
-            p.append("TASK: Read the attached document carefully. Extract the English reading passage for EACH Target Question Number.\n");
-            p.append("HINT: A real question ALWAYS starts with 'N.' (e.g., '43.'). Do NOT treat section headers like '[43~45]' as question numbers — they are just group labels.\n");
-            p.append("HINT: For each Target Question Number, find the line starting with 'N.' and put that Korean question text into [[QUESTION]]. Extract the full English passage into [[PASSAGE]].\n");
-            p.append("HINT: If the passage contains labeled sections like (A), (B), (C), (D), you MUST preserve ALL section labels exactly as they appear inside [[PASSAGE]].\n\n");
-        }
-        // 🔴 JSON에서 추출한 지문 텍스트로 모의고사 문제를 생성할 때: 레이블된 지문을 문제 번호별로 사용한다. 🔴
-        else if ("모의고사".equals(examType) && hasText && questionNos != null && !questionNos.isEmpty()) {
+            p.append("TASK: From the attached document, extract the English passage for each target number.\n");
+            p.append("HINT: Real questions start with 'N.' (e.g. '43.'). Section headers like '[43~45]' are not questions.\n");
+            p.append("HINT: Preserve section labels (A)(B)(C)(D) exactly as they appear.\n\n");
+        } else if ("모의고사".equals(examType) && hasText && questionNos != null && !questionNos.isEmpty()) {
             String targetNums = String.join(", ", questionNos);
             p.append("Target Question Numbers: [").append(targetNums).append("]\n");
-            p.append("TASK: The text below contains English passages labeled by question number (e.g., [Question 18]). ");
-            p.append("For each Target Question Number, use the corresponding labeled passage as the base [[PASSAGE]] to create questions.\n");
-            p.append("HINT: If the passage contains labeled sections like (A), (B), (C), (D), you MUST preserve ALL section labels exactly as they appear inside [[PASSAGE]].\n");
+            p.append("TASK: The text below has passages labeled by question number (e.g. [Question 18]).\n");
+            p.append("Use the labeled passage for each target number. Preserve section labels (A)(B)(C)(D).\n");
             p.append("[TEXT]\n").append(passageText).append("\n\n");
-        }
-        // 🔴 텍스트만 있을 때: 입력된 텍스트를 지문으로 사용한다. 🔴
-        else if (hasText) {
-            p.append("TASK: Use the text provided below as the base passage.\n");
+        } else if (hasText) {
+            p.append("TASK: Use the passage below as the base.\n");
             if ("외부지문".equals(examType)) {
-                // 🔴 긴 외부지문을 각 문제마다 6~8문장 청크로 분할해서 사용하도록 강제한다. 🔴
-                p.append("CRITICAL RULE FOR EXTERNAL TEXT: You MUST divide the provided text into smaller chunks of exactly 6 to 8 sentences each.\n");
-                p.append("Use ONE chunk (6-8 sentences) as the base [PASSAGE] for EACH question you generate. Do NOT use the entire lengthy text for a single question.\n\n");
+                p.append("CRITICAL: Split into chunks of 6-8 sentences. Use ONE chunk per question.\n\n");
             }
             p.append("[TEXT]\n").append(passageText).append("\n\n");
-        }
-        // 🔴 지문이 없을 때: AI가 임의로 지문을 생성하도록 한다. 🔴
-        else {
-            p.append("TASK: No specific passage provided. Please generate a random high school level English passage and base the questions on it.\n\n");
+        } else {
+            p.append("TASK: Generate a random high school English passage and base all questions on it.\n\n");
         }
     }
 
-    // 🔴 요청된 총 문제 개수를 반환한다. GeminiController가 생성 결과 검증에 사용한다. 🔴
+    // 🔴 요청된 총 문제 개수를 반환한다. 🔴
     public int countTotal(List<String> questionTypes, Map<String, String> counts) {
         int total = 0;
         if (questionTypes != null) {
@@ -146,15 +208,28 @@ public class PromptBuilder {
         return total;
     }
 
-    // 🔴 선택된 문제 유형과 개수, 각 유형별 생성 규칙을 추가한다. 🔴
+    // 🔴 문제 유형별 상세 규칙과 오답 설계 지시를 추가한다. 🔴
     private void appendQuestionTypes(StringBuilder p, List<String> questionTypes, Map<String, String> counts) {
-        // 🔴 총 문제 개수를 계산해서 Gemini에게 명시적으로 알려준다. 🔴
         int totalCount = countTotal(questionTypes, counts);
+        // 🔴 1. 12개 대량 생성 시 문맥 피로도(과부하) 방지 및 독립 실행 강제 🔴
+        p.append("[BATCH PROCESSING PROTOCOL]\n");
+        p.append("CRITICAL: You are tasked with generating a large batch of questions. To prevent errors, you MUST process them strictly ONE BY ONE.\n");
+        p.append("Treat each question as a completely INDEPENDENT task. Reset your focus for every new [[QUESTION]] tag. Do NOT mix rules between different question types.\n\n");
 
-        p.append("[QUESTION TYPES TO GENERATE]\n");
-        p.append("You MUST generate exactly ").append(totalCount).append(" questions in total. Do NOT stop early. Complete ALL questions before ending.\n");
-        p.append("CRITICAL: DO NOT reuse the original question from the text. Create completely NEW questions.\n");
-        p.append("- Make 3 options clearly incorrect, and 2 options (including the answer) highly confusing.\n\n");
+        // 🔴 2. 지정된 12개 유형 이외의 '창조 출제' 완벽 차단 🔴
+        p.append("CRITICAL FOR QUESTION TYPES:\n");
+        p.append("You MUST ONLY generate the exact question types explicitly listed below. NEVER invent, guess, or substitute with other types (e.g., NEVER generate 'Inference' or 'Short Answer' unless specifically requested).\n");
+        p.append("If you are asked for '요지 파악', generate EXACTLY '요지 파악'. Stick strictly to the requested list.\n\n");
+
+        p.append("[QUESTIONS TO GENERATE]\n");
+        p.append("Generate exactly ").append(totalCount).append(" questions. Do NOT stop early.\n");
+        p.append("CRITICAL: Input may contain original exam questions — IGNORE them. Create BRAND NEW questions.\n");
+        p.append("CRITICAL: Do NOT copy any expression, underlined phrase, or answer choice from the original.\n\n");
+
+        p.append("[DISTRACTOR DESIGN RULE — APPLY TO ALL QUESTIONS]\n");
+        p.append("Before choosing options, mentally plan: 'What misconception will trap a student who only skims?'\n");
+        p.append("- 3 options must be clearly wrong\n");
+        p.append("- 2 options (including the answer) must be highly confusing — use passage keywords in wrong logical context\n\n");
 
         if (questionTypes != null) {
             for (String type : questionTypes) {
@@ -165,28 +240,57 @@ public class PromptBuilder {
         }
     }
 
-    // 🔴 문제 유형별 생성 규칙을 한 줄 영어로 추가한다. (gemini-prompt-rules.skill.md 준수) 🔴
+    // 🔴 문제 유형별 생성 규칙을 추가한다. 🔴
     private void appendTypeRule(StringBuilder p, String type) {
         if (type.contains("빈칸")) {
-            p.append("  -> RULE: Replace a phrase with [ ________ ]. The answer MUST be a SYNONYM, not the exact original text.\n");
+            p.append("  RULE: Choose a key phrase and replace with [ ________ ]. Answer must be a synonym — not the exact phrase.\n");
+            p.append("  Do NOT blank any phrase that appeared underlined in the original question.\n");
         } else if (type.contains("순서")) {
-            p.append("  -> RULE: Provide a starting sentence, then shuffle the rest into (A), (B), and (C).\n");
+            p.append("  RULE: questionText = first sentence only. passage = (A)(B)(C) blocks ONLY — no full passage repeat after blocks.\n");
+            p.append("  Do NOT copy the order from the original question.\n");
         } else if (type.contains("요약")) {
-            p.append("  -> RULE: At the bottom of [[PASSAGE]], put '↓' and a 1-2 sentence summary with blanks (A) and (B).\n");
+            p.append("  RULE: passage must end with: \\n\\n↓\\n<1~2 sentence summary with (A) [ ________ ] and (B) [ ________ ]>\n");
+            p.append("  ⛔ CRITICAL — ↓ OUTPUT PROCEDURE (follow exactly):\n");
+            p.append("    Step 1. Write the English passage text.\n");
+            p.append("    Step 2. Output a blank line.\n");
+            p.append("    Step 3. Output ONLY the single character ↓ on its own line. Nothing else on that line.\n");
+            p.append("    Step 4. Output the summary sentence with (A) [ ________ ] and (B) [ ________ ].\n");
+            p.append("  Skipping Step 3 (the ↓ line) is a critical failure. The arrow is mandatory.\n");
+            p.append("  options must be 5 word-pairs: (1) wordA - wordB format.\n");
+            p.append("  NEVER fill in (A)(B) — they MUST remain as [ ________ ].\n");
+            p.append("CRITICAL: After the passage text, you MUST output a standalone downward arrow character BEFORE the summary sentence. DO NOT SKIP the arrow symbol.\n\n");
         } else if (type.contains("주제") || type.contains("요지") || type.contains("제목")) {
-            p.append("  -> RULE: Options MUST be in English.\n");
+            p.append("  RULE: All 5 options must be in English. Create completely new options.\n");
         } else if (type.contains("어법")) {
-            p.append("  -> RULE: Underline 5 parts and label them (1) to (5). One is incorrect.\n");
+            p.append("  RULE: Underline EXACTLY 5 items: <u>(1)word</u> through <u>(5)word</u>. ALL 5 required — missing any is invalid.\n");
+            p.append("  ⛔ MANDATORY: Exactly 1 of the 5 MUST be grammatically WRONG (e.g., subject-verb disagreement, wrong verb form, adjective/adverb swap).\n");
+            p.append("  STEP 1 — Choose which number (1~5) will be wrong. STEP 2 — Deliberately introduce a grammar error there.\n");
+            p.append("  STEP 3 — Verify the other 4 are all correct. If all 5 end up correct, you have failed — redo.\n");
+            p.append("  options must list (1) through (5) matching each underlined item.\n");
         } else if (type.contains("어휘")) {
-            p.append("  -> RULE: Underline 5 words labeled (1) to (5). Replace one with an inappropriate word.\n");
+            p.append("  RULE: Underline EXACTLY 5 words: <u>(1)word</u> through <u>(5)word</u>. ALL 5 required.\n");
+            p.append("  Replace exactly 1 with a contextually wrong word. The other 4 must be appropriate.\n");
+            p.append("  options must list (1) through (5) matching each underlined word.\n");
         } else if (type.contains("문장삽입")) {
-            p.append("  -> RULE: Extract one sentence into [[QUESTION]]. Place spots (1) to (5) in the [[PASSAGE]].\n");
+            p.append("  RULE: questionText = Korean instruction only. English given sentence goes in passage BEFORE the numbered text.\n");
+            p.append("  passage = [Given: <English sentence>]\\n\\n<passage with ( 1 ) through ( 5 ) spots>.\n");
+            p.append("  options must be [\"(1) 1\", \"(2) 2\", \"(3) 3\", \"(4) 4\", \"(5) 5\"] — never leave options empty.\n");
         } else if (type.contains("무관한")) {
-            p.append("  -> RULE: Insert ONE irrelevant sentence. Number 5 sentences (1) to (5).\n");
+            p.append("  -> RULE: Insert ONE newly created irrelevant sentence. Number EXACTLY 5 sentences from (1) to (5).\n");
+            p.append("     CRITICAL: Do NOT number every sentence in the passage. Only number the 5 target sentences (4 original + 1 fake).\n");
+            p.append("     CRITICAL: Do NOT group multiple sentences under a single number like (5). Each number MUST contain exactly ONE sentence.\n");
+            p.append("     CRITICAL: Preserve ALL original sentences. Do NOT delete any original sentence to make room.\n");
+            p.append("  options = sentence numbers as strings, e.g. [\"(1) 1\", \"(2) 2\", ...]. Answer = number of the fake sentence.\n");
         } else if (type.contains("대명사")) {
-            p.append("  -> RULE: Underline 5 pronouns labeled (a) to (e). One refers to a different entity.\n");
+            p.append("  ⛔ PRE-CHECK (do this before generating): Scan the passage for pronouns (he/she/they/him/her/them/his/their etc.).\n");
+            p.append("    - If you can find at least 4 pronouns that clearly refer to the EXACT SAME specific person or entity → generate 대명사지칭.\n");
+            p.append("    - If the passage lacks a clear main person with 4+ pronouns (e.g., abstract topic, no named person) → SKIP this type.\n");
+            p.append("      Instead, generate a 어휘 question or 빈칸추론 question from the same passage.\n");
+            p.append("  RULE (if generating): Underline 5 pronouns labeled <u>(a)pronoun</u> to <u>(e)pronoun</u>. Pronouns only — no nouns.\n");
+            p.append("    4 must refer to the SAME person; exactly 1 to a DIFFERENT entity. Options = [\"(a)\",\"(b)\",\"(c)\",\"(d)\",\"(e)\"].\n");
+            p.append("     CRITICAL FALLBACK: If the passage does NOT contain at least 4 pronouns referring to the EXACT SAME person or entity, DO NOT generate a '대명사 찾기' question. In this case, automatically switch and generate an '어휘' question instead.\n");
         } else if (type.contains("내용일치")) {
-            p.append("  -> RULE: Write 5 factual statements in Korean. Exactly ONE MUST be FALSE.\n");
+            p.append("  RULE: Write 5 Korean factual statements. Exactly ONE must be FALSE.\n");
         }
     }
 }

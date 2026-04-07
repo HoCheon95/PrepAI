@@ -22,6 +22,7 @@
 
         <div class="action-buttons">
             <button class="btn" onclick="copyAll()">복사하기</button>
+            <button class="btn" onclick="previewJson()">JSON 미리보기</button>
             <button class="btn btn-primary" id="btn-save" onclick="saveToDb()">DB에 저장</button>
             <a href="/question-form" class="btn">다시 생성하기</a>
             <%-- 터미널에 다시 생성하기 출력 --%>
@@ -36,6 +37,21 @@
 
     <%-- 🔴 해설지 뷰 (기본 숨김) 🔴 --%>
     <div id="view-answers" class="exam-container" style="display:none"></div>
+
+    <%-- 🔴 JSON 미리보기 모달 🔴 --%>
+    <div id="json-modal" class="modal-overlay" onclick="closeJsonModal(event)">
+        <div class="modal-box">
+            <div class="modal-header">
+                <span class="modal-title">JSON 미리보기</span>
+                <div class="modal-actions">
+                    <button class="btn" onclick="copyJson()">복사하기</button>
+                    <button class="btn btn-primary" onclick="downloadJson()">다운로드</button>
+                    <button class="btn modal-close" onclick="closeJsonModal()">✕</button>
+                </div>
+            </div>
+            <pre id="json-preview" class="json-preview"></pre>
+        </div>
+    </div>
 
     <%-- 🔴 토스트 메시지 영역 🔴 --%>
     <div id="toast"></div>
