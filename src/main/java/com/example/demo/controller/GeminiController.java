@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.ModelAndView;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -41,24 +43,36 @@ public class GeminiController {
             @RequestParam(value = "questionTypes", required = false) List<String> questionTypes,
             @RequestParam(value = "difficultyLevel", required = false) String difficultyLevel,
             @RequestParam(value = "modification", required = false) List<String> modifications,
+            @RequestParam(value = "outputMode", required = false, defaultValue = "") String outputMode,
+            @RequestParam(value = "isSetMode", required = false, defaultValue = "false") boolean isSetMode,
             @RequestParam(value = "passageImage", required = false) MultipartFile passageImage,
             @RequestParam Map<String, String> allParams) {
 
         boolean hasFile = passageImage != null && !passageImage.isEmpty();
         boolean hasText = passageText != null && !passageText.trim().isEmpty();
 
-        // 🔴 프롬프트 조립 + 요청 문제 수 산출을 PromptBuilder에 위임한다. 🔴
-        String prompt         = promptBuilder.build(
-                examType, passageText, questionNos, questionTypes,
-                difficultyLevel, modifications, hasFile, hasText, allParams);
-        int    expectedCount  = promptBuilder.countTotal(questionTypes, allParams);
+        // 🔴 outputMode가 "mixed"이면 문제 유형 순서를 셔플한다. 🔴
+        boolean isMixed = "mixed".equalsIgnoreCase(outputMode);
+        if (isMixed && questionTypes != null) {
+            questionTypes = new ArrayList<>(questionTypes);
+            Collections.shuffle(questionTypes);
+        }
 
-        System.out.println("[PrepAI] 문제 생성 요청: " + expectedCount + "개");
+        // 🔴 프롬프트 조립 + 요청 문제 수 산출을 PromptBuilder에 위임한다. 🔴
+        String prompt        = promptBuilder.build(
+                examType, passageText, questionNos, questionTypes,
+                difficultyLevel, modifications, hasFile, hasText, allParams,
+                isMixed, isSetMode);
+        int    expectedCount = promptBuilder.countTotal(questionTypes, allParams);
+
+        // 🔴 문제 수 × 900토큰(문제당 평균 출력량) + 2048 버퍼. 최소 4096, 최대 32768로 제한한다. 🔴
+        int maxTokens = Math.min(32768, Math.max(4096, expectedCount * 900 + 2048));
+        System.out.println("[PrepAI] 문제 생성 요청: " + expectedCount + "개 / maxTokens: " + maxTokens);
 
         // 🔴 Gemini 호출 후 ResponseValidator로 형식 + 문제 수 검증, 최대 3회 재시도한다. 🔴
-        String initialResponse = geminiService.getGeminiResponse(prompt, passageImage);
+        String initialResponse = geminiService.getGeminiResponse(prompt, passageImage, maxTokens);
         String aiResponse      = responseValidator.validateWithRetry(
-                initialResponse, prompt, passageImage, geminiService, expectedCount);
+                initialResponse, prompt, passageImage, geminiService, expectedCount, maxTokens);
 
         // 🔴 실제 생성된 완전한 JSON 객체 수를 세어 터미널에 출력한다. 🔴
         long actualCount = 0;

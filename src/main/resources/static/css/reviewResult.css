@@ -208,6 +208,17 @@ body {
     white-space: pre-wrap;
 }
 
+/* 🔴 주관식 안내 힌트 🔴 */
+.q-subjective-hint {
+    color: #6366f1;
+    font-style: italic;
+    font-size: 13px;
+    border-left: 3px solid #6366f1;
+    padding-left: 10px;
+    margin-left: 38px;
+    line-height: 2;
+}
+
 /* 🔴 불완전한 문제 카드 — 빨간 테두리로 시각적 구별 🔴 */
 .q-incomplete {
     border-left-color: #dc2626;

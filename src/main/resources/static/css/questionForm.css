@@ -200,6 +200,20 @@ input[type="checkbox"] {
     white-space: nowrap;
 }
 
+/* ── 주관식 구분선 ──────────────────────────────────────────── */
+.checkbox-item.subjective-divider {
+    background: none;
+    border: none;
+    padding: 4px 0;
+    justify-content: center;
+}
+.subjective-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #868e96;
+    letter-spacing: 0.05em;
+}
+
 /* ── 문제 생성 중 로딩 오버레이 ──────────────────────────────── */
 #loading-overlay {
     display: none;

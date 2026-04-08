@@ -37,6 +37,12 @@ function parseAiResponse(raw) {
         if (clean.endsWith('```')) clean = clean.slice(0, -3);
         clean = clean.trim();
 
+        // 🔴 JSON 문자열 값 내부의 실제 줄바꿈을 \n으로 치환해 JSON.parse 실패를 방지한다. 🔴
+        // JSON 문자열 바깥의 줄바꿈(구조적 공백)은 유지하면서, 문자열 안의 것만 처리한다.
+        clean = clean.replace(/"((?:[^"\\]|\\[\s\S])*)"/g, (match) =>
+            match.replace(/\r?\n/g, '\\n').replace(/\t/g, '\\t')
+        );
+
         const arr = JSON.parse(clean);
         return arr.map((item, idx) => ({
             index:        idx,
@@ -89,8 +95,16 @@ function formatOptions(str) {
 
 // ── 완전성 검증 ──────────────────────────────────────────────────
 
-// 🔴 문제·선택지·정답이 모두 있어야 완전한 문제로 판단한다. 🔴
+// 🔴 주관식 유형(서답형·서술형)인지 판별한다. 🔴
+function isSubjective(q) {
+    return q.questionType.includes('서답형') || q.questionType.includes('서술형');
+}
+
+// 🔴 완전한 문제로 판단한다. 주관식은 options/answer가 없어도 passage만 있으면 완전하다. 🔴
 function isComplete(q) {
+    if (isSubjective(q)) {
+        return q.question.trim() !== '' && q.passage.trim() !== '';
+    }
     return q.question.trim() !== ''
         && q.options.trim()  !== ''
         && q.answer.trim()   !== '';
@@ -116,16 +130,19 @@ function buildExamQuestion(q) {
             </div>
         </div>
         ${q.passage ? `<div class="q-passage">${renderText(q.passage)}</div>` : ''}
-        <div class="q-options">${formatOptions(q.options)}</div>
+        ${isSubjective(q)
+            ? `<div class="q-options q-subjective-hint">✏️ 주관식 — 직접 서술하시오.</div>`
+            : `<div class="q-options">${formatOptions(q.options)}</div>`}
     </div>`;
 }
 
 // 🔴 해설지용 단일 답안 블록 HTML을 생성한다. 🔴
 function buildAnswerItem(q) {
+    const answerDisplay = isSubjective(q) ? '주관식' : escapeHtml(q.answer);
     return `<div class="answer-item" id="ans-${q.index}">
         <div class="ans-header">
             <span class="ans-num">문제 ${q.index + 1}.</span>
-            <span class="ans-correct">정답&nbsp;${escapeHtml(q.answer)}</span>
+            <span class="ans-correct">정답&nbsp;${answerDisplay}</span>
         </div>
         ${q.explanation
             ? `<div class="ans-explanation">${renderText(q.explanation)}</div>`
@@ -284,8 +301,8 @@ function buildJsonData() {
         given_sentence:  extractGivenSentence(q.question),
         passage:         q.passage || null,
         word_notes:      [],
-        choices:         parseChoices(q.options),
-        answer:          parseInt(q.answer) || null,
+        choices:         isSubjective(q) ? [] : parseChoices(q.options),
+        answer:          isSubjective(q) ? null : (parseInt(q.answer) || null),
         explanation:     q.explanation || null
     }));
 }
@@ -332,19 +349,23 @@ function copyAll() {
     const isAnswerView = document.getElementById('btn-view-answers').classList.contains('active');
 
     const text = parsedQuestions.map((q, i) => {
+        const subj = isSubjective(q);
         const content = [
             `[문제 ${i + 1}]`,
             q.question,
             '',
             q.passage || '',
             '',
-            q.options
+            subj ? '✏️ (주관식 — 직접 서술하시오.)' : q.options
         ];
 
         if (isAnswerView) {
-            content.push(`정답: ${q.answer}`);
-            if (q.explanation) {
-                content.push(`해설: ${q.explanation}`);
+            if (subj) {
+                content.push('【모범 답안 및 해설】');
+                if (q.explanation) content.push(q.explanation);
+            } else {
+                content.push(`정답: ${q.answer}`);
+                if (q.explanation) content.push(`해설: ${q.explanation}`);
             }
         }
 

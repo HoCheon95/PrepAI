@@ -20,6 +20,12 @@ public class ResponseValidator {
     public String validateWithRetry(String initialResponse, String prompt,
                                     MultipartFile file, GeminiService geminiService,
                                     int expectedCount) {
+        return validateWithRetry(initialResponse, prompt, file, geminiService, expectedCount, 16384);
+    }
+
+    public String validateWithRetry(String initialResponse, String prompt,
+                                    MultipartFile file, GeminiService geminiService,
+                                    int expectedCount, int maxTokens) {
         String response     = initialResponse;
         String bestResponse = initialResponse;
         int    bestCount    = countCompleteBlocks(initialResponse);
@@ -29,7 +35,7 @@ public class ResponseValidator {
             if (!isStructurallyValid(response)) {
                 System.out.println("[PrepAI] ⚠️ 응답 형식 오류 (" + attempt + "/" + MAX_RETRY + "회) — 재시도");
                 if (attempt < MAX_RETRY) {
-                    response = geminiService.getGeminiResponse(prompt, file);
+                    response = geminiService.getGeminiResponse(prompt, file, maxTokens);
                 }
                 continue;
             }
@@ -50,7 +56,7 @@ public class ResponseValidator {
             if (!isContentValid(response)) {
                 System.out.println("[PrepAI] ⚠️ 컨텐츠 누락 (" + attempt + "/" + MAX_RETRY + "회) — 재시도");
                 if (attempt < MAX_RETRY) {
-                    response = geminiService.getGeminiResponse(prompt, file);
+                    response = geminiService.getGeminiResponse(prompt, file, maxTokens);
                 }
                 continue;
             }
@@ -59,7 +65,7 @@ public class ResponseValidator {
                 System.out.println("[PrepAI] ⚠️ 문제 수 부족 (" + attempt + "/" + MAX_RETRY + "회)"
                         + " — 요청 " + expectedCount + "개 / 생성 " + actual + "개 → 재시도");
                 if (attempt < MAX_RETRY) {
-                    response = geminiService.getGeminiResponse(prompt, file);
+                    response = geminiService.getGeminiResponse(prompt, file, maxTokens);
                 }
                 continue;
             }
@@ -68,7 +74,7 @@ public class ResponseValidator {
             if (attempt > 1) {
                 System.out.println("[PrepAI] " + attempt + "회 시도 후 정상 완료 — " + actual + "개 생성");
             }
-            return response;
+            return reserialize(response);
         }
 
         // 🔴 3회 모두 재시도 후에도 최선의 결과를 반환한다. 형식 자체가 깨진 경우만 예외를 던진다. 🔴
@@ -77,7 +83,7 @@ public class ResponseValidator {
             if (missing > 0) {
                 System.out.println("[PrepAI] ⚠️ 최종 결과 — 요청 " + expectedCount + "개 / 생성 " + bestCount + "개 / 미생성 " + missing + "개");
             }
-            return bestResponse;
+            return reserialize(bestResponse);
         }
 
         throw new RuntimeException("AI 응답 형식 오류: " + MAX_RETRY + "회 재시도 모두 실패. 문제 수를 줄이거나 다시 시도해 주세요.");
@@ -95,23 +101,49 @@ public class ResponseValidator {
 
     private boolean isStructurallyValid(String response) {
         repairedResponse = null;
-        if (response == null || response.isBlank()) return false;
-        if (response.startsWith("최신 SDK 호출 중 오류 발생")) return false;
+
+        // 🔴 원인 진단 1: 응답 자체가 비어있음 🔴
+        if (response == null || response.isBlank()) {
+            System.out.println("[PrepAI] ✗ 원인: Gemini 응답이 비어있음 (null 또는 blank)");
+            return false;
+        }
+
+        // 🔴 원인 진단 2: Gemini SDK 호출 자체가 실패한 경우 🔴
+        if (response.startsWith("최신 SDK 호출 중 오류 발생")) {
+            System.out.println("[PrepAI] ✗ 원인: Gemini API 오류 → " + response);
+            return false;
+        }
+
+        // 🔴 원인 진단: 응답 앞부분 미리보기 (JSON이 아닌 텍스트 감지용) 🔴
+        String preview = response.trim().substring(0, Math.min(200, response.trim().length()));
+        if (!preview.startsWith("[") && !preview.startsWith("{") && !preview.startsWith("```")) {
+            System.out.println("[PrepAI] ✗ 원인: 응답이 JSON 배열로 시작하지 않음");
+            System.out.println("[PrepAI]   응답 앞부분: " + preview);
+            return false;
+        }
+
         try {
             List<Map<String, Object>> questions = parseJsonArray(response);
-            if (questions == null || questions.isEmpty()) return false;
+
+            // 🔴 원인 진단 3: 빈 배열 🔴
+            if (questions == null || questions.isEmpty()) {
+                System.out.println("[PrepAI] ✗ 원인: JSON 파싱은 성공했으나 배열이 비어있음");
+                return false;
+            }
+
             for (Map<String, Object> q : questions) {
                 if (!q.containsKey("questionText") || !q.containsKey("options") || !q.containsKey("answer")) {
-                    System.out.println("[PrepAI] 불완전한 JSON 객체 감지 (fields): " + q.keySet());
+                    System.out.println("[PrepAI] ✗ 원인: 필수 필드 누락 — 실제 필드: " + q.keySet());
                     return false;
                 }
             }
             return true;
+
         } catch (Exception e) {
             String msg = e.getMessage() != null ? e.getMessage() : "";
             // 🔴 "end-of-input" 오류 = 응답이 중간에 잘린 것 → 완성된 객체만 살려낸다. 🔴
             if (msg.contains("end-of-input") || msg.contains("Unexpected end")) {
-                System.out.println("[PrepAI] ⚠️ 응답 잘림 감지 — 완성된 객체 복구 시도");
+                System.out.println("[PrepAI] ⚠️ 원인: 응답 중간에 잘림 (토큰 한도 초과 의심) — 복구 시도");
                 String recovered = tryRepairTruncatedJson(response);
                 if (recovered != null) {
                     repairedResponse = recovered;
@@ -120,7 +152,8 @@ public class ResponseValidator {
                 }
                 System.out.println("[PrepAI] 복구 실패 — 문제 수를 줄여 재시도하세요");
             } else {
-                System.out.println("[PrepAI] JSON 파싱 실패: " + msg.substring(0, Math.min(100, msg.length())));
+                System.out.println("[PrepAI] ✗ 원인: JSON 파싱 예외 → " + msg.substring(0, Math.min(200, msg.length())));
+                System.out.println("[PrepAI]   응답 앞부분: " + preview);
             }
             return false;
         }
@@ -194,6 +227,14 @@ public class ResponseValidator {
                         return false;
                     }
                 }
+
+                // 서술형: passage 안에 [CONDITIONS] 블록이 있어야 한다.
+                if (type.contains("서술형")) {
+                    if (!passage.contains("[CONDITIONS]") && !passage.contains("Target:")) {
+                        System.out.println("[PrepAI] ⚠️ 서술형 [CONDITIONS] 블록 누락 감지 — 재시도");
+                        return false;
+                    }
+                }
             }
         } catch (Exception e) {
             // JSON 파싱 실패는 isStructurallyValid에서 잡히므로 여기서는 통과
@@ -234,6 +275,36 @@ public class ResponseValidator {
         clean = clean.trim();
         return objectMapper.readValue(clean,
                 objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class));
+    }
+
+    // 🔴 Jackson으로 파싱 후 재직렬화해서 클라이언트가 안전하게 파싱할 수 있는 JSON을 반환한다. 🔴
+    // 🔴 Gemini가 passage/explanation에 실제 줄바꿈(Enter)을 삽입해도 \n으로 정규화된다. 🔴
+    // 🔴 Set 모드에서 토큰 절약을 위해 LLM이 출력한 "SAME_AS_QUESTION_1"을 실제 지문으로 복원한다. 🔴
+    private String reserialize(String response) {
+        try {
+            List<Map<String, Object>> parsed = parseJsonArray(response);
+            remapSetPassages(parsed);
+            String clean = objectMapper.writeValueAsString(parsed);
+            System.out.println("[PrepAI] JSON 재직렬화 완료 — 클라이언트 파싱 안전 보장");
+            return clean;
+        } catch (Exception e) {
+            System.out.println("[PrepAI] ⚠️ 재직렬화 실패, 원본 반환: " + e.getMessage());
+            return response;
+        }
+    }
+
+    // 🔴 Set 모드에서 "SAME_AS_QUESTION_1" 플레이스홀더를 첫 번째 문제의 실제 passage로 교체한다. 🔴
+    private void remapSetPassages(List<Map<String, Object>> questions) {
+        if (questions == null || questions.size() <= 1) return;
+        String firstPassage = String.valueOf(questions.get(0).getOrDefault("passage", ""));
+        if (firstPassage.isBlank()) return;
+        for (int i = 1; i < questions.size(); i++) {
+            Object raw = questions.get(i).get("passage");
+            if (raw instanceof String && ((String) raw).trim().equals("SAME_AS_QUESTION_1")) {
+                questions.get(i).put("passage", firstPassage);
+                System.out.println("[PrepAI] passage 복원: 문제 " + (i + 1) + " ← 문제 1 지문");
+            }
+        }
     }
 
     // 🔴 외부에서 단순 유효성 확인이 필요할 때 사용하는 public 메서드다. 🔴

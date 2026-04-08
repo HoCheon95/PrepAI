@@ -114,21 +114,34 @@ function calcTotalQuestions() {
 
 // 🔴 로딩 오버레이를 표시하고 게이지를 예상 시간 기반으로 채운다. 🔴
 // 🔴 1문제 생성에 약 5초 소요 기준으로 게이지 속도를 계산한다. 🔴
+// 🔴 최대 대기 시간(180초) 초과 시 에러 메시지를 표시한다. 🔴
 function showLoadingOverlay(total) {
-  const overlay  = document.getElementById('loading-overlay');
-  const bar      = document.getElementById('loading-bar');
-  const countEl  = document.getElementById('loading-count');
-  const etaEl    = document.getElementById('loading-eta');
+  const overlay   = document.getElementById('loading-overlay');
+  const bar       = document.getElementById('loading-bar');
+  const countEl   = document.getElementById('loading-count');
+  const etaEl     = document.getElementById('loading-eta');
 
   overlay.style.display = 'flex';
 
-  const totalMs  = Math.max(10000, total * 5000); // 최소 10초
-  const tickMs   = 200;
-  const maxPct   = 92; // 92%까지만 채우고 서버 응답 대기
-  let   elapsed  = 0;
+  const totalMs   = Math.max(10000, total * 5000); // 최소 10초
+  const maxWaitMs = 180000; // 🔴 서버 타임아웃(120초) + 여유 60초 = 최대 3분 🔴
+  const tickMs    = 200;
+  const maxPct    = 92;
+  let   elapsed   = 0;
 
-  setInterval(() => {
+  const timer = setInterval(() => {
     elapsed += tickMs;
+
+    // 🔴 최대 대기 시간 초과 시 인터벌을 해제하고 에러 안내를 표시한다. 🔴
+    if (elapsed >= maxWaitMs) {
+      clearInterval(timer);
+      bar.style.width     = '100%';
+      bar.style.background = '#dc3545';
+      countEl.textContent = '응답 시간 초과';
+      etaEl.textContent   = '서버가 응답하지 않습니다. 문제 수를 줄이거나 다시 시도해 주세요.';
+      return;
+    }
+
     const pct    = Math.min(maxPct, (elapsed / totalMs) * 100);
     const genNum = Math.min(total, Math.round((pct / 100) * total));
     const remS   = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));

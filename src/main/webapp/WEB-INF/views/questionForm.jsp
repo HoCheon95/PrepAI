@@ -58,7 +58,6 @@
                             </div>
                         </div>
                     </div>
-
                     <div class="right-column">
                         <div class="form-card">
                             <label class="form-label">🎯 문제 유형 및 개수 선택</label>
@@ -111,25 +110,58 @@
                                     <label><input type="checkbox" name="questionTypes" value="내용일치"> 내용 일치/불일치 파악하기 (True/False)</label>
                                     <div><input type="number" name="count_내용일치" class="number-input" min="1" max="10" value="1"> 개</div>
                                 </div>
+                                <div class="checkbox-item subjective-divider">
+                                    <span class="subjective-label">── 주관식 ──</span>
+                                </div>
+                                <div class="checkbox-item">
+                                    <label><input type="checkbox" name="questionTypes" value="서답형"> 서답형 (Short Answer)</label>
+                                    <div><input type="number" name="count_서답형" class="number-input" min="1" max="10" value="1"> 개</div>
+                                </div>
+                                <div class="checkbox-item">
+                                    <label><input type="checkbox" name="questionTypes" value="서술형"> 서술형 (Descriptive)</label>
+                                    <div><input type="number" name="count_서술형" class="number-input" min="1" max="10" value="1"> 개</div>
+                                </div>
                             </div>
                         </div>
 
                         <div class="form-card">
+                            <label class="form-label">🎲 출제 배열 방식 (출력 모드)</label>
+                            <div class="radio-group" style="flex-direction: column;">
+                                <label style="text-align: left; display:flex; align-items:center; gap:8px;">
+                                    <input type="radio" name="outputMode" value="grouped" checked>
+                                    유형별 모아보기 (선택한 유형끼리 묶어서 출제)
+                                </label>
+                                <label style="text-align: left; display:flex; align-items:center; gap:8px;">
+                                    <input type="radio" name="outputMode" value="mixed">
+                                    실전 모의고사 섞어보기 (문제 순서를 무작위로 섞어서 출제)
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-card">
+                            <label class="form-label">🔗 1지문 다문항 (세트) 출제</label>
+                            <div class="checkbox-group">
+                                <label style="display:flex; align-items:center; gap:8px;">
+                                    <input type="checkbox" name="includeSetQuestions" value="true">
+                                    긴 지문 하나에 문제 2개를 묶은 세트 문항 포함하기 (예: 41~42번 장문형)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-card">
                             <label class="form-label">🔄 지문 변형 여부 (단일 선택 가능)</label>
                             <div class="checkbox-group">
-                                <label style="display:flex; align-items:center; gap:8px;"><input type="radio" name="modification" value="원본그대로"> 원본 지문 그대로 출제 (내신 암기 확인용)</label>
+                                <label style="display:flex; align-items:center; gap:8px;"><input type="radio" name="modification" value="원본그대로" checked> 원본 지문 그대로 출제 (내신 암기 확인용)</label>
                                 <label style="display:flex; align-items:center; gap:8px;"><input type="radio" name="modification" value="지문변형"> 지문 변형 출제 (유의어 대체, 문장 구조 변경 등)</label>
                             </div>
                         </div>
                     </div>
-
-                </div>
+                    </div>
 
                 <button type="submit" class="btn-submit">AI 문제 생성하기 🚀</button>
             </form>
         </div>
 
-        <%-- 🔴 문제 생성 중 로딩 오버레이 — 폼 제출 시 JS가 활성화한다. 🔴 --%>
+        <%-- 🔴 문제 생성 중 로딩 오버레이 🔴 --%>
         <div id="loading-overlay">
             <div class="loading-box">
                 <div class="loading-spinner"></div>
