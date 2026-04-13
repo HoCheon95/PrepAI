@@ -1,6 +1,6 @@
 {
   "version": "3.0",
-  "lastUpdated": "2026-04-08T05:43:14.406Z",
+  "lastUpdated": "2026-04-13T11:00:50.108Z",
   "activeFeatures": [
     "skill",
     "geminiAI",
@@ -47,9 +47,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-24T11:15:02.224Z",
-        "lastUpdated": "2026-04-08T05:43:14.406Z"
+        "lastUpdated": "2026-04-12T23:52:01.389Z"
       },
-      "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/controller/GeminiController.java"
+      "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/controller/PageController.java"
     },
     "service": {
       "phase": "do",
@@ -60,9 +60,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-24T11:31:25.594Z",
-        "lastUpdated": "2026-04-08T05:43:09.838Z"
+        "lastUpdated": "2026-04-13T00:14:15.937Z"
       },
-      "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/service/ResponseValidator.java"
+      "lastFile": "/home/ho/workspace/PrepAI/src/main/java/com/example/demo/service/PromptBuilder.java"
     },
     "entity": {
       "phase": "do",
@@ -99,9 +99,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-03-25T00:36:17.740Z",
-        "lastUpdated": "2026-04-08T04:51:18.740Z"
+        "lastUpdated": "2026-04-13T11:00:50.108Z"
       },
-      "lastFile": "/home/ho/workspace/PrepAI/src/main/resources/static/js/reviewResult.js"
+      "lastFile": "/home/ho/workspace/PrepAI/src/main/resources/static/js/geminiForm.js"
     }
   },
   "pipeline": {
@@ -112,7 +112,7 @@
   "session": {
     "startedAt": "2026-03-24T10:13:42.806Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-04-08T05:43:14.406Z"
+    "lastActivity": "2026-04-13T11:00:50.108Z"
   },
   "history": [
     {
@@ -1402,6 +1402,180 @@
     {
       "timestamp": "2026-04-08T05:43:14.406Z",
       "feature": "controller",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-12T23:52:01.389Z",
+      "feature": "controller",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T00:01:54.094Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T00:14:05.594Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T00:14:15.937Z",
+      "feature": "service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T00:59:08.754Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T01:14:45.056Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T02:15:35.181Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T02:26:15.166Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T02:26:19.254Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T02:51:44.145Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T03:24:26.900Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T03:24:54.418Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T03:25:05.752Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T03:25:20.959Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T03:36:02.418Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T05:52:02.532Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T05:52:07.547Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T07:46:19.033Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T07:46:27.743Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T07:46:39.165Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T07:46:45.088Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T08:18:40.579Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T08:31:00.239Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T10:16:07.130Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T10:23:28.247Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T10:33:13.854Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T10:40:45.951Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T10:51:08.879Z",
+      "feature": "js",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-13T11:00:50.108Z",
+      "feature": "js",
       "phase": "do",
       "action": "updated"
     }

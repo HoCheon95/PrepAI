@@ -306,6 +306,13 @@ public class PromptBuilder {
         p.append("NUMBERING: Number questions consecutively across ALL types (objective and subjective) in the order listed. Do NOT restart numbering per type.\n");
         p.append("EXPLANATION: Every question — whether objective or subjective — MUST include a complete explanation following the [EXPLANATION RULES] above.\n\n");
 
+        // 🔴 passage 중복 출력 방지 — 동일 지문을 N번 반복하면 출력 토큰이 폭증한다. 🔴
+        p.append("[PASSAGE DEDUPLICATION RULE — TOKEN SAVING]\n");
+        p.append("CRITICAL: When multiple questions are generated from the SAME passage:\n");
+        p.append("- Question 1: \"passage\" field MUST contain the FULL English passage.\n");
+        p.append("- Question 2 and ALL subsequent questions: set \"passage\" to EXACTLY the string: \"SAME_AS_QUESTION_1\"\n");
+        p.append("DO NOT repeat the full passage text for questions 2 onwards. This is mandatory to save tokens.\n\n");
+
         // 🔴 2. 지정된 12개 유형 이외의 '창조 출제' 완벽 차단 🔴
         p.append("CRITICAL FOR QUESTION TYPES:\n");
         p.append("You MUST ONLY generate the exact question types explicitly listed below. NEVER invent, guess, or substitute with other types (e.g., NEVER generate 'Inference' or 'Short Answer' unless specifically requested).\n");
@@ -347,6 +354,13 @@ public class PromptBuilder {
 
         p.append("CRITICAL FOR QUESTION TYPES:\n");
         p.append("You MUST ONLY generate the exact question types listed in the sequence above. NEVER invent, guess, or substitute with other types.\n\n");
+
+        // 🔴 혼합 시험도 동일 지문 반복 출력을 차단한다. 🔴
+        p.append("[PASSAGE DEDUPLICATION RULE — TOKEN SAVING]\n");
+        p.append("CRITICAL: When multiple questions are generated from the SAME passage:\n");
+        p.append("- Question 1: \"passage\" field MUST contain the FULL English passage.\n");
+        p.append("- Question 2 and ALL subsequent questions: set \"passage\" to EXACTLY the string: \"SAME_AS_QUESTION_1\"\n");
+        p.append("DO NOT repeat the full passage text for questions 2 onwards. This is mandatory to save tokens.\n\n");
 
         p.append("[DISTRACTOR DESIGN RULE — APPLY TO ALL QUESTIONS]\n");
         p.append("Before choosing options, mentally plan: 'What misconception will trap a student who only skims?'\n");

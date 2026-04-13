@@ -1,6 +1,6 @@
 [
   {
-    "timestamp": "2026-04-07T07:32:35.421Z",
+    "timestamp": "2026-04-13T05:56:52.275Z",
     "errorType": "unknown",
     "category": "unknown",
     "severity": "low",
@@ -9,7 +9,7 @@
     "message": ""
   },
   {
-    "timestamp": "2026-04-07T07:48:22.430Z",
+    "timestamp": "2026-04-13T06:03:25.527Z",
     "errorType": "unknown",
     "category": "unknown",
     "severity": "low",
@@ -18,7 +18,7 @@
     "message": ""
   },
   {
-    "timestamp": "2026-04-07T07:54:22.872Z",
+    "timestamp": "2026-04-13T06:56:28.380Z",
     "errorType": "unknown",
     "category": "unknown",
     "severity": "low",
@@ -27,25 +27,7 @@
     "message": ""
   },
   {
-    "timestamp": "2026-04-07T07:55:37.378Z",
-    "errorType": "unknown",
-    "category": "unknown",
-    "severity": "low",
-    "agentId": null,
-    "agentType": null,
-    "message": ""
-  },
-  {
-    "timestamp": "2026-04-07T08:01:51.409Z",
-    "errorType": "unknown",
-    "category": "unknown",
-    "severity": "low",
-    "agentId": null,
-    "agentType": null,
-    "message": ""
-  },
-  {
-    "timestamp": "2026-04-07T08:20:32.070Z",
+    "timestamp": "2026-04-13T06:58:23.786Z",
     "errorType": "unknown",
     "category": "unknown",
     "severity": "low",

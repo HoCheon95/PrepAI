@@ -14,6 +14,11 @@ public class PageController {
         return "questionForm";
     }
 
+    @GetMapping("/gemini-form")
+    public String showGeminiForm() {
+        return "geminiForm";
+    }
+
     // 🔴 PDF 지문 추출 테스트 페이지 🔴
     @GetMapping("/test/pdf")
     public String showPdfTest() {
