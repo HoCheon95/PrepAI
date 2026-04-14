@@ -206,6 +206,55 @@ input[type="file"] {
     box-sizing: border-box;
 }
 
+.question-type-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 0;
+}
+.question-type-header .form-label {
+    margin-bottom: 15px;
+    flex: 1;
+}
+.select-all-btns {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    padding-bottom: 10px;
+    border-bottom: none;
+    align-self: flex-end;
+    margin-bottom: 15px;
+}
+.btn-select-all,
+.btn-select-subjective,
+.btn-deselect-all {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: 0.2s;
+    white-space: nowrap;
+    font-family: "Malgun Gothic", sans-serif;
+}
+.btn-select-all {
+    background: #667eea;
+    color: white;
+}
+.btn-select-all:hover { background: #5a6fd6; }
+.btn-select-subjective {
+    background: #20c997;
+    color: white;
+}
+.btn-select-subjective:hover { background: #17a784; }
+.btn-deselect-all {
+    background: #e9ecef;
+    color: #495057;
+}
+.btn-deselect-all:hover { background: #dee2e6; }
+
 .checkbox-item.subjective-divider {
     background: none;
     border: none;

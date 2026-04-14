@@ -60,6 +60,9 @@ function toggleUI(type) {
         textAreaWrapper.style.display      = 'none';
         passageLabel.innerText             = '📄 모의고사 선택';
         document.querySelectorAll('input[name="questionNos"]').forEach(cb => cb.checked = false);
+        // 템플릿 라디오 → 모의고사용으로 자동 동기화
+        const regularRadio = document.querySelector('input[name="passageSource"][value="regular"]');
+        if (regularRadio) { regularRadio.checked = true; togglePassageSource('regular'); }
     } else {
         numberCard.style.display           = 'none';
         examSelectWrap.style.display       = 'none';
@@ -69,14 +72,16 @@ function toggleUI(type) {
         if (textArea) textArea.value       = '';
         const extSel = document.getElementById('externalPassageSelect');
         if (extSel) extSel.value           = '';
+        // 템플릿 라디오 → 외부 지문 내신용으로 자동 동기화
+        const externalRadio = document.querySelector('input[name="passageSource"][value="external"]');
+        if (externalRadio) { externalRadio.checked = true; togglePassageSource('external'); }
     }
 }
 
 // ── 지문 출처 토글 ────────────────────────────────────────────────
 
 function togglePassageSource(value) {
-    const card = document.getElementById('key-points-card');
-    card.style.display = value === 'external' ? 'block' : 'none';
+    // key-points-card 제거됨 — 빈 함수 유지 (라디오 onchange 호환)
 }
 
 // ── 외부 지문 프리셋 선택 ──────────────────────────────────────────
@@ -99,9 +104,9 @@ function onExternalPassageChange(key) {
 // ── 프롬프트 생성 ─────────────────────────────────────────────────
 
 function generatePrompt() {
-    const examType   = getRadioValue('examType');
-    const difficulty = getRadioValue('difficultyLevel');
-    const modification = getRadioValue('modification');
+    const examType      = getRadioValue('examType');
+    const difficulty    = getRadioValue('difficultyLevel');
+    const modification  = getRadioValue('modification');
 
     // 문제 유형 목록
     let typesString = '';
@@ -173,52 +178,437 @@ function generatePrompt() {
 
     if (passageSource === 'external') {
         // ── 템플릿 B: 외부 지문 내신용 ───────────────────────────────
-        const keyPoints = document.getElementById('keyPointsText').value.trim();
-        if (!keyPoints) {
-            alert('핵심 출제 포인트를 입력해주세요!');
-            return;
-        }
         finalPrompt =
-`너는 고등학교 영어 내신 시험 출제 전문가야.
-제공된 외부 지문(원서/부교재)을 바탕으로 아래 [출제 규칙]을 엄격하게 지켜서 내신 대비용 문제를 창조해줘.
+`////////////////////////////////////////////////////////////
+// 🔴 TEMPLATE PROTECTION MODE (Claude 전용 — 절대 수정 금지)
+////////////////////////////////////////////////////////////
 
-[기본 규칙 - 외부 지문 무결성 🚨]
-1. 이 프롬프트는 '외부 지문' 전용이며, 지문의 원문을 자의적으로 한국어로 번역하거나 변형하지 않는다.
-2. 🔴 구문 및 시제 무결성: 지문 내 시제와 시간 부사의 호응을 철저히 검수한다. (예: six years ago와 같은 특정 과거 시점이 있으면 had had(과거완료)가 아닌 had(단순과거)가 쓰였는지 확인)
-3. 🔴 힌트 노출 방지: 특정 어휘 문제의 정답이 바로 뒤 문장에 그대로 등장하여 정답을 유추할 수 있게 하는 '데이터 오염'을 방지한다. 반드시 유사한 의미의 다른 단어로 패러프레이징하여 오답 선지를 구성할 것.
-4. 🔴 기호 및 서식 강제 유지: 숫자 범위에는 반드시 물결표(~) 기호를 생략 없이 출력한다. (예: 10~15단어)
+This prompt is a FINAL INTEGRATED GENERATION + VALIDATION TEMPLATE.
 
-[선택지 및 문제 출력 형식 규칙]
-- 선택지는 ①, ②, ③, ④, ⑤ 원문자 기호를 사용하고, 각 선택지 사이에는 반드시 줄바꿈(Enter)을 두 번(\\n\\n) 넣어 세로로 분리한다.
-- 문장 삽입 문제: 끼워 넣어야 할 문장은 발문 바로 아래에 [주어진 문장: (영어 문장 내용)] 형태로 대괄호를 사용하여 본문과 명확하게 분리 표기한다.
+- You must NOT modify, summarize, restructure, or optimize this prompt.
+- You must output this prompt EXACTLY as written.
+- You are NOT allowed to reinterpret or improve any part of this prompt.
+- You must NOT ignore any section of this prompt
+- You must execute ALL stages in order
+- You must NOT skip validation
+- You must NOT output intermediate reasoning
 
-[내신 특화 출제 방향 🎯]
-- 난이도: ${difficulty}
-- [핵심 반영 포인트]: 사용자가 입력한 아래의 핵심 출제 포인트(어법, 핵심어 등)를 반드시 문제(특히 어법, 서술형, 빈칸)의 정답으로 최우선 반영하여 설계한다.
-  👉 포인트 내용: ${keyPoints}
+////////////////////////////////////////////////////////////
+// 🔴 PROMPT TYPE DECLARATION (외부 지문 전용 — 최우선 고정)
+////////////////////////////////////////////////////////////
 
-[유형별 특별 규칙 - 오류 방지 로직 🛠️]
-- 대명사지칭: 밑줄 중 4개는 대상 A, 1개는 대상 B를 가리키도록 설계한다. 대상 B가 지문에 등장하도록 문장 구조를 최소한으로 수정한다.
-- 서답형(주관식 단답): "본문에서 연속된 n개의 단어로 찾아 쓸 것"처럼 명확한 채점 기준을 제시한다.
-- 서술형(조건영작):
-  * 🔴 단어 수 검증: 실제 정답 문장의 단어 수를 직접 세어보고, 조건 범위(예: 10~15단어)가 정답을 포함하는지 반드시 확인한다.
-  * 지문 내 타겟 문장을 [ TARGET SENTENCE REDACTED ]로 가리고 조건을 명시한다.
+This prompt is strictly for: [외부 지문 내신용 문제 생성]
 
-[해설 작성 규칙]
-1. 정답 근거 인용 및 논리적 설명.
-2. 매력적인 오답 선지가 틀린 이유 분석.
-3. 해설 말투는 '~한다', '~해야 한다'로 객관적으로 통일한다.
+- This is NOT a mock exam (모의고사) prompt.
+- This is NOT a passage generation task.
+- This is an EXTERNAL PASSAGE-BASED exam creation task.
 
-========================================
-▶ 출제할 문제 목록:
+You must follow ONLY the rules for external passage exam creation.
+You must NOT apply mock exam generation logic under any circumstances.
+
+---
+
+// 🔴 PASSAGE LOCK (지문 절대 보존)
+
+You must reproduce the passage EXACTLY as provided.
+
+- Preserve line breaks
+- Preserve punctuation
+- Preserve formatting
+- Do NOT modify anything
+
+---
+
+// 🔴 PASSAGE MODE
+
+${modification}
+
+---
+
+// 🔴 DIFFICULTY
+
+${difficulty}
+
+---
+
+// 🔴 SYSTEM ROLE
+
+You are:
+1. A top-tier English exam item writer
+2. A strict CSAT-level validator
+3. A correction engine that fixes flawed questions
+
+---
+
+// 🔴 TASK
+
+Using the given passage:
+
+STEP 1 → Generate exam (questions below)
+STEP 2 → Validate all questions
+STEP 3 → Fix ONLY flawed questions
+STEP 4 → Output final clean exam + answer sheet
+
+---
+
+// 🔴 QUESTION TYPES (순서 고정)
+
 ${typesString}
 
-▶ 외부 영어 지문:
+---
+
+// 🔴 GENERATION RULES
+
+- Each question must have ONLY ONE correct answer
+- All wrong answers must be logical distractors
+- All questions must be 100% based on the passage
+
+---
+
+// 🔴 DISTRACTOR RULE (핵심 🔥)
+
+- Every wrong choice must share at least ONE concept with the correct answer
+- Wrong choices must be "partially correct but ultimately incorrect"
+- Do NOT create obviously wrong answers
+
+---
+
+////////////////////////////////////////////////////////////
+// 🔴 DISTRACTOR GENERATION SYSTEM (강화)
+////////////////////////////////////////////////////////////
+
+You must construct ALL incorrect choices using CSAT-level distractor logic.
+
+- 모든 오답은 정답과 의미 일부를 공유할 것
+- "부분적으로 맞지만 핵심이 틀린 구조"로 만들 것
+
+반드시 포함:
+- cause/result 왜곡
+- general/specific 왜곡
+- 주체 변경
+- 키워드 일부만 반영
+
+난이도:
+- 1개: 매우 강한 오답
+- 2~3개: 중간
+- 1개: 비교적 쉬움
+
+금지:
+- 완전 무관
+- 단순 반대말
+- 지문 없는 정보
+
+요약문 오답:
+- perception / interpretation / logic 반드시 포함
+
+---
+
+// 🔴 DIFFICULTY ENFORCEMENT
+
+[순서 배열]
+- Must NOT be solvable by time order only
+- Must require logical inference
+
+[문장 삽입]
+- Must be placed in the middle of the passage
+- Must NOT be solvable by local clues only
+
+---
+
+// 🔴 HARD DIFFICULTY ENFORCEMENT (추가)
+
+[순서 배열 강화]
+- At least ONE option must match chronological order but be incorrect
+- The correct answer must violate simple time sequence
+
+[문장 삽입 강화]
+- The correct answer must depend on paragraph-level context
+- Adjacent sentence clues alone must NOT be sufficient
+
+---
+
+// 🔴 GRAMMAR RULE
+
+- Exactly ONE grammatical error must exist in grammar question
+
+---
+
+// 🔴 FORMAT RULE (치명적 중요 🚨)
+
+- Each choice must be on a NEW LINE
+- Use ①②③④⑤ exactly once each
+- No duplication, no broken numbering
+- No inline choices allowed
+
+---
+
+// 🔴 CHAIN OF THOUGHT (내부 실행)
+
+1. Identify main idea and contrast structure
+2. Set question intent per type
+3. Decide correct answer first
+4. Build distractors with shared logic
+5. Validate uniqueness of answer
+6. Check format and grammar
+
+DO NOT OUTPUT THIS PROCESS
+
+---
+
+// 🔴 VALIDATION STAGE (자동 검수)
+
+After generating ALL questions, perform:
+
+CHECK 1: Is there any question with 2 possible answers? → FIX
+CHECK 2: Are any distractors too easy? → REWRITE
+CHECK 3: Is any question solvable without reading? → HARDEN
+CHECK 4: Is format broken? → FIX
+CHECK 5: Is any question not supported by passage? → FIX
+
+If ANY question violates format:
+→ REWRITE that question BEFORE output
+
+---
+
+// 🔴 AUTO VALIDATION SYSTEM (문제 자동 검수 — 필수 실행)
+
+If TWO choices can be correct:
+→ Rewrite distractors immediately
+
+You must NEVER output ambiguous questions
+
+After generating ALL questions, you MUST run a validation check.
+
+For EACH question, verify:
+
+1. 정답이 단 하나인지 확인할 것
+2. 다른 선택지가 정답처럼 보이지 않는지 확인할 것
+3. 지문 근거가 명확한지 확인할 것
+4. 오답이 논리적 Distractor인지 확인할 것
+
+If ANY issue is found:
+→ 수정 후 다시 검증할 것
+
+You must NOT output until all questions pass validation.
+
+---
+
+// 🔴 DISTRACTOR REINFORCEMENT (강화 — 이미 적용 보완)
+
+All distractors MUST:
+
+- share at least one key concept with the correct answer
+- differ only in core logic or conclusion
+- avoid obvious elimination
+
+For top-level difficulty:
+- include at least ONE near-correct distractor
+- include subtle distortion (NOT random wrong)
+
+---
+
+// 🔴 INSERTION QUESTION HARD LOCK (문장 삽입 고정 규칙)
+
+Sentence insertion questions MUST follow:
+
+1. 정답 위치는 반드시 "논리적으로 유일"해야 한다
+
+2. 삽입 문장은 반드시 다음 요소 포함:
+   - referential word (this / that / such / it / others 등)
+   - or contrast marker (but / however / instead 등)
+
+3. 두 위치 이상 자연스럽게 들어가는 문장 금지
+
+4. 문장 앞뒤 연결이 반드시 1곳에서만 완벽하게 맞도록 설계할 것
+
+If multiple valid positions exist:
+→ rewrite the sentence
+
+---
+
+// 🔴 PRONOUN QUESTION HARD LOCK (대명사 문제 고정 규칙)
+
+Pronoun reference questions MUST follow:
+
+1. 보기의 모든 대명사 유형을 통일할 것
+   (예: me / him / him / him / him)
+
+2. 정답은 반드시 "단 하나만" 다른 대상을 가리킬 것
+
+3. 아래 상황 금지:
+   - I / my / me 혼합
+   - 문법 형태 차이로 정답 유추 가능
+
+4. 의미 기반으로만 구별 가능하게 설계할 것
+
+---
+
+// 🔴 CONTENT MATCH QUESTION HARD LOCK (내용일치 강화)
+
+Wrong choices MUST:
+
+- be partially correct but contain one critical error
+- NOT be obviously false
+
+Use:
+- reversed logic
+- exaggerated claim
+- missing condition
+
+---
+
+// 🔴 VOCABULARY QUESTION HARD LOCK (어휘 문제 안정화)
+
+Vocabulary question MUST:
+
+- contain only ONE incorrect word
+- all other words must be perfectly natural
+
+If more than one incorrect word exists:
+→ revise immediately
+
+---
+
+// 🔴 FINAL SAFETY CHECK
+
+Before output:
+
+- Ensure NO duplicate answers
+- Ensure NO ambiguous correct answers
+- Ensure formatting is correct
+- Ensure each question has exactly 5 options
+
+If ANY issue exists:
+→ fix before output
+
+---
+
+// 🔴 CORRECTION RULE
+
+- You must NOT regenerate entire exam
+- You must ONLY fix flawed questions internally before final output
+
+---
+
+// 🔴 OUTPUT FORMAT (절대 변경 금지)
+
+[시험지]
+
+[Alice 모의고사 시험지]
+
+[1-14] 다음 글을 읽고 물음에 답하시오.
+
+(지문 그대로 출력)
+
+1. 다음 글의 빈칸에 들어갈 말로 가장 적절한 것은?
+①
+②
+③
+④
+⑤
+
+2. 다음 글의 주제로 가장 적절한 것은?
+①
+②
+③
+④
+⑤
+
+(모든 문항 동일 형식 유지)
+
+---
+
+[해설지]
+
+1번 정답:
+- 근거:
+- 오답 해설:
+
+(모든 문항 동일 형식 유지)
+
+---
+
+////////////////////////////////////////////////////////////
+// 🔴 OUTPUT FORMAT HARD LOCK (Docs 깨짐 방지)
+////////////////////////////////////////////////////////////
+
+1. 선택지 줄바꿈 강제
+
+① A
+② B
+③ C
+④ D
+⑤ E
+
+2. 문제 번호: 1. 형식 유지
+3. 선택지: ①②③④⑤만 사용
+4. 문제 간 한 줄 공백 유지
+5. [ ________ ] 유지
+
+6. 서술형 조건 반드시 그대로 출력:
+
+"15~20단어 사이로 작성할 것 (필요시 단어 추가 및 형태 변화 가능)"
+
+---
+
+////////////////////////////////////////////////////////////
+// 🔴 GOOGLE DOCS GENERATION SYSTEM
+////////////////////////////////////////////////////////////
+
+You MUST generate TWO sections:
+
+[시험지]
+
+[해설지]
+
+[해설지] 포함:
+- 정답
+- 근거 문장
+- 오답 해설
+
+Google Docs에 바로 복붙 가능한 형태로 출력할 것
+
+- Maintain spacing
+- Maintain readability
+- Do NOT compress lines
+
+- DO NOT merge sections
+- DO NOT remove section labels
+- DO NOT change section order
+
+---
+
+////////////////////////////////////////////////////////////
+// 🔴 GOOGLE DOCS EXECUTION HARD LOCK
+////////////////////////////////////////////////////////////
+
+You MUST treat the final execution command as a REQUIRED ACTION, not as text.
+
+Failure to generate Google Docs format is considered a task failure.
+
+---
+
+// 🔴 PASSAGE
+
 ${passage}
 
-========================================
-🚨 [최종 도구 실행 명령]
-위 규칙을 적용하여 생성한 시험지와 해설지를 바탕으로, 각각 별도의 Google Docs 문서로 생성해줘.`;
+---
+
+////////////////////////////////////////////////////////////
+// 🔴 TOOL EXECUTION MODE (강제 실행)
+////////////////////////////////////////////////////////////
+
+The following command is NOT text.
+It MUST be executed as a tool instruction.
+
+The assistant must NOT output plain text instead of executing this command.
+The assistant must retry execution until the Google Docs are successfully generated.
+
+////////////////////////////////////////////////////////////
+// 🔴 FINAL EXECUTION COMMAND (절대 삭제 금지)
+////////////////////////////////////////////////////////////
+
+🚨 [최종 도구 실행 명령] 위 규칙과 예시를 완벽히 적용하여 시험지와 해설지를 별도의 Google Docs 문서로 각각 생성하라.`;
 
     } else {
         // ── 템플릿 A: 수능/모의고사 기출용 (기본) ───────────────────
@@ -292,6 +682,28 @@ function resetCopyBtn() {
     const btn = document.getElementById('copyBtn');
     btn.textContent = '📋 클립보드에 복사';
     btn.classList.remove('copied');
+}
+
+// ── 문제 유형 일괄 선택 ───────────────────────────────────────────
+
+const SUBJECTIVE_TYPES = ['서답형', '서술형'];
+
+function selectAllTypes() {
+    document.querySelectorAll('input[name="questionTypes"]').forEach(cb => {
+        cb.checked = true;
+    });
+}
+
+function selectSubjectiveOnly() {
+    document.querySelectorAll('input[name="questionTypes"]').forEach(cb => {
+        cb.checked = SUBJECTIVE_TYPES.includes(cb.value);
+    });
+}
+
+function deselectAllTypes() {
+    document.querySelectorAll('input[name="questionTypes"]').forEach(cb => {
+        cb.checked = false;
+    });
 }
 
 function getRadioValue(name) {

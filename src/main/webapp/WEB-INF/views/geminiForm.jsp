@@ -42,13 +42,7 @@
                 </div>
             </div>
 
-            <!-- 외부 지문 전용: 핵심 출제 포인트 -->
-            <div class="form-card" id="key-points-card" style="display:none;">
-                <label class="form-label">🎯 핵심 출제 포인트 입력</label>
-                <textarea id="keyPointsText" placeholder="선생님이 강조한 문법/어휘 포인트를 입력하세요.&#10;예) 과거완료 had p.p., It ~ that 강조 구문, 감정 형용사 어휘 등"></textarea>
-            </div>
-
-            <!-- 모의고사 번호 선택 (모의고사 전용) -->
+<!-- 모의고사 번호 선택 (모의고사 전용) -->
             <div class="form-card" id="mock-number-card">
                 <label class="form-label">📌 출제할 문제 번호 선택 (다중 선택 가능)</label>
                 <div class="number-grid">
@@ -113,7 +107,14 @@
         <div class="right-column">
 
             <div class="form-card">
-                <label class="form-label">🎯 문제 유형 및 개수 선택</label>
+                <div class="question-type-header">
+                    <label class="form-label">🎯 문제 유형 및 개수 선택</label>
+                    <div class="select-all-btns">
+                        <button type="button" class="btn-select-all" onclick="selectAllTypes()">유형 모두 선택</button>
+                        <button type="button" class="btn-select-subjective" onclick="selectSubjectiveOnly()">주관식만 선택</button>
+                        <button type="button" class="btn-deselect-all" onclick="deselectAllTypes()">전체 해제</button>
+                    </div>
+                </div>
                 <div class="checkbox-group">
                     <div class="checkbox-item">
                         <label><input type="checkbox" name="questionTypes" value="빈칸추론"> 빈칸 추론 (Blank)</label>
