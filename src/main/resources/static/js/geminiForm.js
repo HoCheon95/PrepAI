@@ -219,6 +219,23 @@ You must reproduce the passage EXACTLY as provided.
 
 ---
 
+// 🔴 PASSAGE PURIFICATION RULE
+
+Before question generation, remove ALL non-passage instructional sections.
+
+Remove:
+- Reading Rest Stop
+- Key Expressions
+- Grammar Structures
+- Comprehension Question
+- Answer / Explanation blocks
+- Any emoji, icon, or teacher-note style content
+
+Use ONLY the core passage as the exam passage.
+
+---
+
+
 // 🔴 PASSAGE MODE
 
 ${modification}
@@ -264,6 +281,18 @@ ${typesString}
 - All questions must be 100% based on the passage
 
 ---
+
+// 🔴 BLANK QUESTION HARD LOCK
+
+Blank inference question MUST NOT be solved by direct sentence copying.
+
+- Do NOT use an answer choice that reproduces the original sentence verbatim
+- Rewrite the target so the student must infer meaning from context
+- Keep the correct choice semantically equivalent, not text-identical
+- The correct answer must NOT be directly predictable from adjacent sentence only
+
+---
+
 
 // 🔴 DISTRACTOR RULE (핵심 🔥)
 
@@ -320,10 +349,14 @@ You must construct ALL incorrect choices using CSAT-level distractor logic.
 [순서 배열 강화]
 - At least ONE option must match chronological order but be incorrect
 - The correct answer must violate simple time sequence
+- Include at least ONE chronological trap option
+- The correct answer must NOT be recoverable by simple time sequence alone
+- Require causal or referential reasoning in addition to order
 
 [문장 삽입 강화]
 - The correct answer must depend on paragraph-level context
 - Adjacent sentence clues alone must NOT be sufficient
+- At least one incorrect option must appear more logical than the correct answer at first glance
 
 ---
 
@@ -342,6 +375,27 @@ You must construct ALL incorrect choices using CSAT-level distractor logic.
 
 ---
 
+// 🔴 SUMMARY QUESTION HARD LOCK
+
+Summary question MUST follow:
+
+① A — B
+② A — B
+③ A — B
+④ A — B
+⑤ A — B
+
+Only ONE set allowed.
+
+Forbidden:
+- single-word options
+- duplicated formats
+
+If violated:
+→ rewrite immediately
+
+---
+
 // 🔴 CHAIN OF THOUGHT (내부 실행)
 
 1. Identify main idea and contrast structure
@@ -352,21 +406,6 @@ You must construct ALL incorrect choices using CSAT-level distractor logic.
 6. Check format and grammar
 
 DO NOT OUTPUT THIS PROCESS
-
----
-
-// 🔴 VALIDATION STAGE (자동 검수)
-
-After generating ALL questions, perform:
-
-CHECK 1: Is there any question with 2 possible answers? → FIX
-CHECK 2: Are any distractors too easy? → REWRITE
-CHECK 3: Is any question solvable without reading? → HARDEN
-CHECK 4: Is format broken? → FIX
-CHECK 5: Is any question not supported by passage? → FIX
-
-If ANY question violates format:
-→ REWRITE that question BEFORE output
 
 ---
 
@@ -390,6 +429,39 @@ If ANY issue is found:
 → 수정 후 다시 검증할 것
 
 You must NOT output until all questions pass validation.
+
+---
+
+////////////////////////////////////////////////////////////
+// 🔴 AUTO FIX EXECUTION SYSTEM (강제 수정)
+////////////////////////////////////////////////////////////
+
+If ANY validation rule fails:
+
+1. Identify the flawed question
+2. Modify ONLY that question
+3. Re-run validation for that question
+4. Repeat until ALL checks pass
+
+CRITICAL:
+
+- DO NOT regenerate the entire exam
+- ONLY fix flawed questions
+- DO NOT output intermediate drafts
+- ONLY output FINAL corrected version
+
+Failure to comply = invalid output
+
+---
+
+// 🔴 SHORT-ANSWER WORD COUNT LOCK
+
+For any short-answer question with a required word count:
+
+- The required word count must exactly match the actual answer
+- If the answer from the passage does not match the required count,
+  rewrite the question condition before output
+- Never output a short-answer question with mismatched word-count instructions
 
 ---
 
@@ -426,6 +498,20 @@ If multiple valid positions exist:
 
 ---
 
+// 🔴 INSERTION OPTION FORMAT LOCK
+
+Options MUST be exactly:
+
+① ( ① )
+② ( ② )
+③ ( ③ )
+④ ( ④ )
+⑤ ( ⑤ )
+
+No variation allowed.
+
+---
+
 // 🔴 PRONOUN QUESTION HARD LOCK (대명사 문제 고정 규칙)
 
 Pronoun reference questions MUST follow:
@@ -440,6 +526,20 @@ Pronoun reference questions MUST follow:
    - 문법 형태 차이로 정답 유추 가능
 
 4. 의미 기반으로만 구별 가능하게 설계할 것
+
+---
+
+// 🔴 PRONOUN OPTION FORMAT LOCK
+
+Options MUST be exactly:
+
+① (1)
+② (2)
+③ (3)
+④ (4)
+⑤ (5)
+
+No duplication allowed.
 
 ---
 
@@ -466,6 +566,9 @@ Vocabulary question MUST:
 
 If more than one incorrect word exists:
 → revise immediately
+
+- Do NOT create the incorrect option as a simple direct antonym
+- The incorrect word must be plausibly close in context, not obviously opposite
 
 ---
 
@@ -532,18 +635,10 @@ If ANY issue exists:
 // 🔴 OUTPUT FORMAT HARD LOCK (Docs 깨짐 방지)
 ////////////////////////////////////////////////////////////
 
-1. 선택지 줄바꿈 강제
-
-① A
-② B
-③ C
-④ D
-⑤ E
-
-2. 문제 번호: 1. 형식 유지
-3. 선택지: ①②③④⑤만 사용
-4. 문제 간 한 줄 공백 유지
-5. [ ________ ] 유지
+1. 선택지는 반드시 줄바꿈으로 출력할 것
+2. 각 선택지는 ①②③④⑤ 번호만 사용할 것
+3. 문제 간 한 줄 공백 유지
+4. [ ________ ] 유지
 
 6. 서술형 조건 반드시 그대로 출력:
 

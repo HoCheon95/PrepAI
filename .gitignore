@@ -27,5 +27,10 @@ Thumbs.db
 # 🔴 로컬 환경 설정 (API 키 등 민감 정보 포함 - 절대 커밋 금지)
 application-local.properties
 
-🔴 # 특정 도구(BKIT) 관련 상태 및 기록 파일 제외
+# 🔴 특정 도구(BKIT) 관련 상태 및 기록 파일 제외
 .bkit/
+
+🔴 # H2 데이터베이스 파일 제외
+*.db
+*.lock.db
+*.mv.db
